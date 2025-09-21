@@ -1,0 +1,157 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="PrinterAPP.MainPage">
+    <ScrollView Padding="20" BackgroundColor="#F5F5F5">
+        <VerticalStackLayout Spacing="15">
+
+            <!-- Header -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <Image Source="dotnet_bot.png" 
+                           HeightRequest="50" 
+                           WidthRequest="50"/>
+
+                    <VerticalStackLayout Grid.Column="1" Margin="15,0">
+                        <Label Text="Kitchen Printer Setup" 
+                               FontSize="20" 
+                               FontAttributes="Bold"/>
+                        <Label x:Name="StatusLabel"
+                               Text="Loading..."
+                               FontSize="14"
+                               TextColor="Gray"/>
+                    </VerticalStackLayout>
+
+                    <Button x:Name="ServiceToggleButton"
+                            Grid.Column="2"
+                            Text="Start Service"
+                            BackgroundColor="Green"
+                            TextColor="White"
+                            CornerRadius="20"
+                            WidthRequest="120"
+                            Clicked="OnServiceToggleClicked"
+                            IsVisible="{OnPlatform WinUI=True, Default=False}"/>
+                </Grid>
+            </Frame>
+
+            <!-- API Configuration -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="API Configuration" 
+                           FontSize="18" 
+                           FontAttributes="Bold"/>
+
+                    <Label Text="API Base URL" FontSize="14" TextColor="Gray"/>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <Entry x:Name="ApiUrlEntry"
+                               Placeholder="http://localhost:5221"
+                               Text="http://localhost:5221"/>
+                        <Button Text="Test"
+                                Grid.Column="1"
+                                BackgroundColor="#2196F3"
+                                TextColor="White"
+                                WidthRequest="80"
+                                Clicked="OnTestApiClicked"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Printer Settings -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Printer Settings" 
+                           FontSize="18" 
+                           FontAttributes="Bold"/>
+
+                    <Label Text="Select Printer" FontSize="14" TextColor="Gray"/>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                        <Picker x:Name="PrinterPicker"
+                                Title="Choose a printer"/>
+                        <Button Text="Refresh"
+                                Grid.Column="1"
+                                BackgroundColor="#4CAF50"
+                                TextColor="White"
+                                WidthRequest="80"
+                                Clicked="OnRefreshPrintersClicked"/>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout>
+                            <Label Text="Paper Width" FontSize="14" TextColor="Gray"/>
+                            <Picker x:Name="PaperWidthPicker">
+                                <Picker.Items>
+                                    <x:String>80mm</x:String>
+                                    <x:String>58mm</x:String>
+                                </Picker.Items>
+                            </Picker>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Grid.Column="1">
+                            <Label Text="Print Copies" FontSize="14" TextColor="Gray"/>
+                            <Entry x:Name="PrintCopiesEntry"
+                                   Text="1"
+                                   Keyboard="Numeric"/>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Switch x:Name="AutoPrintSwitch"
+                                IsToggled="True"
+                                VerticalOptions="Center"/>
+                        <Label Text="Auto-print new orders"
+                               Grid.Column="1"
+                               VerticalOptions="Center"
+                               Margin="10,0,0,0"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Restaurant Information -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="Restaurant Information" 
+                           FontSize="18" 
+                           FontAttributes="Bold"/>
+
+                    <Label Text="Restaurant Name" FontSize="14" TextColor="Gray"/>
+                    <Entry x:Name="RestaurantNameEntry"
+                           Text="Your Restaurant"
+                           Placeholder="Enter restaurant name"/>
+
+                    <Label Text="Kitchen Location" FontSize="14" TextColor="Gray"/>
+                    <Entry x:Name="KitchenLocationEntry"
+                           Text="Main Kitchen"
+                           Placeholder="e.g., Main Kitchen, Bar"/>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Action Buttons -->
+            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                <Button Text="Save"
+                        BackgroundColor="#4CAF50"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="25"
+                        Clicked="OnSaveClicked"/>
+
+                <Button Text="Test Print"
+                        Grid.Column="1"
+                        BackgroundColor="#FF9800"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="25"
+                        Clicked="OnTestPrintClicked"/>
+
+                <Button Text="Reset"
+                        Grid.Column="2"
+                        BackgroundColor="#F44336"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="25"
+                        Clicked="OnResetClicked"/>
+            </Grid>
+
+        </VerticalStackLayout>
+    </ScrollView>
+
+</ContentPage>
