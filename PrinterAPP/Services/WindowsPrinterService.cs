@@ -360,29 +360,49 @@ public class SimplePrinterService : IPrinterService
         var sb = new StringBuilder();
         var isThermal = IsThermalPrinter(printerName);
 
-        // For thermal printers, add ESC/POS commands for darker printing
+        // ESC/POS commands for MAXIMUM darkness
+        const string ESC_INIT = "\x1B\x40";
+        const string ESC_BOLD_ON = "\x1B\x45\x01";
+        const string ESC_BOLD_OFF = "\x1B\x45\x00";
+        const string ESC_EMPHASIZED_ON = "\x1B\x47\x01";
+        const string ESC_EMPHASIZED_OFF = "\x1B\x47\x00";
+        const string ESC_DOUBLE_ON = "\x1D\x21\x11";
+        const string ESC_DOUBLE_OFF = "\x1D\x21\x00";
+        const string ESC_ALIGN_CENTER = "\x1B\x61\x01";
+        const string ESC_ALIGN_LEFT = "\x1B\x61\x00";
+        const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON;
+        const string EXTRA_DARK_OFF = ESC_BOLD_OFF + ESC_EMPHASIZED_OFF;
+
+        // For thermal printers, add ESC/POS commands for MAXIMUM darkness
         if (isThermal)
         {
-            sb.Append("\x1B\x40"); // Initialize
-            sb.Append("\x1B\x61\x01"); // Center align
-            sb.Append("\x1B\x45\x01"); // Bold ON for darker text
+            sb.Append(ESC_INIT); // Initialize
+            sb.Append(ESC_ALIGN_CENTER); // Center align
+            sb.Append(ESC_DOUBLE_ON); // Double size
+            sb.Append(EXTRA_DARK_ON); // EXTRA DARK for header
         }
 
-        sb.AppendLine("      *** TEST RECEIPT ***");
-        sb.AppendLine($"       {config.RestaurantName}");
-        sb.AppendLine($"       {config.KitchenLocation}");
+        sb.AppendLine("*** TEST RECEIPT ***");
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x00"); // Bold OFF
-            sb.Append("\x1B\x61\x00"); // Left align
+            sb.Append(ESC_DOUBLE_OFF); // Normal size
+        }
+
+        sb.AppendLine($"{config.RestaurantName}");
+        sb.AppendLine($"{config.KitchenLocation}");
+
+        if (isThermal)
+        {
+            sb.Append(EXTRA_DARK_OFF); // Turn off extra dark
+            sb.Append(ESC_ALIGN_LEFT); // Left align
         }
 
         sb.AppendLine("================================");
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x01"); // Bold ON for headers
+            sb.Append(EXTRA_DARK_ON); // EXTRA DARK for headers
         }
 
         sb.AppendLine($"Date: {DateTime.Now:dd/MM/yyyy}");
@@ -393,7 +413,7 @@ public class SimplePrinterService : IPrinterService
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x00"); // Bold OFF for details
+            sb.Append(EXTRA_DARK_OFF); // Turn off for details
         }
 
         sb.AppendLine($"  API URL: {config.ApiBaseUrl}");
@@ -403,31 +423,31 @@ public class SimplePrinterService : IPrinterService
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x01"); // Bold ON for sample order
+            sb.Append(EXTRA_DARK_ON); // EXTRA DARK for sample order header
         }
 
         sb.AppendLine("Sample Order:");
-        sb.AppendLine("  2x Burger Deluxe");
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x00"); // Bold OFF for details
+            sb.Append(EXTRA_DARK_OFF); // Turn off for details
         }
 
+        sb.AppendLine("  2x Burger Deluxe");
         sb.AppendLine("     [Large]");
         sb.AppendLine("     Note: No onions");
         sb.AppendLine("");
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x01"); // Bold ON
+            sb.Append(EXTRA_DARK_ON); // EXTRA DARK for item
         }
 
         sb.AppendLine("  1x Caesar Salad");
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x00"); // Bold OFF
+            sb.Append(EXTRA_DARK_OFF); // Turn off
         }
 
         sb.AppendLine("     Extra dressing");
@@ -435,15 +455,15 @@ public class SimplePrinterService : IPrinterService
 
         if (isThermal)
         {
-            sb.Append("\x1B\x61\x01"); // Center align
-            sb.Append("\x1B\x45\x01"); // Bold ON
+            sb.Append(ESC_ALIGN_CENTER); // Center align
+            sb.Append(EXTRA_DARK_ON); // EXTRA DARK for footer
         }
 
-        sb.AppendLine("      *** END OF TEST ***");
+        sb.AppendLine("*** END OF TEST ***");
 
         if (isThermal)
         {
-            sb.Append("\x1B\x45\x00"); // Bold OFF
+            sb.Append(EXTRA_DARK_OFF); // Turn off
             sb.Append("\x1B\x64\x05"); // Feed 5 lines
             sb.Append("\x1D\x56\x00"); // Full cut
         }
