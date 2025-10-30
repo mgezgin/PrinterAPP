@@ -9,10 +9,12 @@ public class OrderPrintService
     private readonly IPrinterService _printerService;
     private readonly ILogger<OrderPrintService> _logger;
 
-    // ESC/POS Commands for darker printing
+    // ESC/POS Commands for MAXIMUM darkness printing
     private const string ESC_INIT = "\x1B\x40"; // Initialize printer
     private const string ESC_BOLD_ON = "\x1B\x45\x01"; // Bold on
     private const string ESC_BOLD_OFF = "\x1B\x45\x00"; // Bold off
+    private const string ESC_EMPHASIZED_ON = "\x1B\x47\x01"; // Emphasized/Double-strike on
+    private const string ESC_EMPHASIZED_OFF = "\x1B\x47\x00"; // Emphasized off
     private const string ESC_DOUBLE_ON = "\x1D\x21\x11"; // Double width and height
     private const string ESC_DOUBLE_OFF = "\x1D\x21\x00"; // Normal size
     private const string ESC_ALIGN_CENTER = "\x1B\x61\x01"; // Center align
@@ -20,6 +22,10 @@ public class OrderPrintService
     private const string ESC_CUT = "\x1D\x56\x00"; // Full cut
     private const string ESC_PARTIAL_CUT = "\x1D\x56\x01"; // Partial cut
     private const string ESC_FEED_AND_CUT = "\x1B\x64\x03"; // Feed 3 lines and cut
+
+    // Combined commands for MAXIMUM darkness
+    private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
+    private const string EXTRA_DARK_OFF = ESC_BOLD_OFF + ESC_EMPHASIZED_OFF; // Turn off all emphasis
 
     public OrderPrintService(IPrinterService printerService, ILogger<OrderPrintService> logger)
     {
@@ -100,25 +106,23 @@ public class OrderPrintService
     {
         var sb = new StringBuilder();
 
-        // Initialize and set bold for better darkness
+        // Initialize printer
         sb.Append(ESC_INIT);
 
-        // Header - Bold and Double Size
+        // Header - EXTRA DARK, Bold, and Double Size for maximum visibility
         sb.Append(ESC_ALIGN_CENTER);
         sb.Append(ESC_DOUBLE_ON);
-        sb.Append(ESC_BOLD_ON);
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"{config.RestaurantName}");
         sb.Append(ESC_DOUBLE_OFF);
-        sb.Append(ESC_BOLD_OFF);
 
-        sb.Append(ESC_BOLD_ON);
         sb.AppendLine($"=== KITCHEN ORDER ===");
-        sb.Append(ESC_BOLD_OFF);
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
-        // Order info - Bold for visibility
+        // Order info - EXTRA DARK for maximum visibility
         sb.Append(ESC_ALIGN_LEFT);
-        sb.Append(ESC_BOLD_ON);
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order #: {order.Id}");
         sb.AppendLine($"Table: {order.TableNumber}");
         sb.AppendLine($"Time: {order.CreatedAt:HH:mm:ss}");
@@ -126,47 +130,49 @@ public class OrderPrintService
         {
             sb.AppendLine($"Waiter: {order.WaiterName}");
         }
-        sb.Append(ESC_BOLD_OFF);
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Items - Make them bold and clear
-        sb.Append(ESC_BOLD_ON);
+        // Items header - EXTRA DARK
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine("ITEMS:");
-        sb.Append(ESC_BOLD_OFF);
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
         foreach (var item in order.Items)
         {
-            sb.Append(ESC_BOLD_ON);
+            // Item name and quantity - EXTRA DARK
+            sb.Append(EXTRA_DARK_ON);
             sb.AppendLine($"{item.Quantity}x {item.Name}");
-            sb.Append(ESC_BOLD_OFF);
+            sb.Append(EXTRA_DARK_OFF);
 
             if (!string.IsNullOrWhiteSpace(item.Notes))
             {
-                sb.Append(ESC_BOLD_ON);
+                // Item notes - EXTRA DARK for visibility
+                sb.Append(EXTRA_DARK_ON);
                 sb.AppendLine($"   NOTE: {item.Notes}");
-                sb.Append(ESC_BOLD_OFF);
+                sb.Append(EXTRA_DARK_OFF);
             }
             sb.AppendLine();
         }
 
-        // Order notes
+        // Order notes - EXTRA DARK for important information
         if (!string.IsNullOrWhiteSpace(order.Notes))
         {
             sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
-            sb.Append(ESC_BOLD_ON);
+            sb.Append(EXTRA_DARK_ON);
             sb.AppendLine("ORDER NOTES:");
             sb.AppendLine(order.Notes);
-            sb.Append(ESC_BOLD_OFF);
+            sb.Append(EXTRA_DARK_OFF);
             sb.AppendLine();
         }
 
-        // Footer
+        // Footer - EXTRA DARK for urgent message
         sb.AppendLine(new string('=', paperWidth == 80 ? 48 : 32));
         sb.Append(ESC_ALIGN_CENTER);
-        sb.Append(ESC_BOLD_ON);
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine("PREPARE IMMEDIATELY");
-        sb.Append(ESC_BOLD_OFF);
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine();
@@ -180,36 +186,34 @@ public class OrderPrintService
     {
         var sb = new StringBuilder();
 
-        // Initialize
+        // Initialize printer
         sb.Append(ESC_INIT);
 
-        // Header - Bold and Double Size
+        // Header - EXTRA DARK, Bold, and Double Size
         sb.Append(ESC_ALIGN_CENTER);
         sb.Append(ESC_DOUBLE_ON);
-        sb.Append(ESC_BOLD_ON);
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"{config.RestaurantName}");
         sb.Append(ESC_DOUBLE_OFF);
-        sb.Append(ESC_BOLD_OFF);
 
-        sb.Append(ESC_BOLD_ON);
         sb.AppendLine("RECEIPT");
-        sb.Append(ESC_BOLD_OFF);
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
-        // Order info
+        // Order info - EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
-        sb.Append(ESC_BOLD_ON);
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order #: {order.Id}");
         sb.AppendLine($"Table: {order.TableNumber}");
         sb.AppendLine($"Date: {order.CreatedAt:yyyy-MM-dd HH:mm}");
-        sb.Append(ESC_BOLD_OFF);
         if (!string.IsNullOrWhiteSpace(order.WaiterName))
         {
             sb.AppendLine($"Server: {order.WaiterName}");
         }
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Items with prices
+        // Items with prices - EXTRA DARK
         foreach (var item in order.Items)
         {
             var itemLine = $"{item.Quantity}x {item.Name}";
@@ -217,11 +221,11 @@ public class OrderPrintService
             var spacing = paperWidth == 80 ? 48 : 32;
             var dots = spacing - itemLine.Length - price.Length;
 
-            sb.Append(ESC_BOLD_ON);
+            sb.Append(EXTRA_DARK_ON);
             sb.Append(itemLine);
             sb.Append(new string('.', Math.Max(1, dots)));
             sb.AppendLine(price);
-            sb.Append(ESC_BOLD_OFF);
+            sb.Append(EXTRA_DARK_OFF);
 
             if (!string.IsNullOrWhiteSpace(item.Notes))
             {
@@ -231,11 +235,11 @@ public class OrderPrintService
 
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Total - Bold and larger
+        // Total - EXTRA DARK, Bold and larger for maximum visibility
         sb.Append(ESC_DOUBLE_ON);
-        sb.Append(ESC_BOLD_ON);
+        sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"TOTAL: ${order.Total:F2}");
-        sb.Append(ESC_BOLD_OFF);
+        sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
 
