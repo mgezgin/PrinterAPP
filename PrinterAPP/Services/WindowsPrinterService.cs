@@ -261,17 +261,31 @@ public class SimplePrinterService : IPrinterService
         {
             // Clean printer name (remove " (Default)" if present)
             var cleanPrinterName = printerName.Replace(" (Default)", "").Trim();
-            
+
+            var isThermal = IsThermalPrinter(cleanPrinterName);
+            System.Diagnostics.Debug.WriteLine($"Printer: {cleanPrinterName}, Is Thermal: {isThermal}");
+
             // Generate receipt text
             var receiptText = GenerateReceiptText(config, cleanPrinterName);
-            
-            // Method 1: Try direct printing
+
+            // Method 1: Try direct RAW printing (works for thermal printers)
+            System.Diagnostics.Debug.WriteLine("Attempting direct RAW printing...");
             if (SendTextToPrinter(cleanPrinterName, receiptText))
             {
+                System.Diagnostics.Debug.WriteLine("Direct RAW printing succeeded");
                 return Task.FromResult(true);
             }
-            
-            // Method 2: Fallback to file + shell print
+
+            System.Diagnostics.Debug.WriteLine("Direct RAW printing failed, trying alternative methods...");
+
+            // Method 2: For non-thermal printers, try HTML printing with bold tags
+            if (!isThermal)
+            {
+                System.Diagnostics.Debug.WriteLine("Non-thermal printer detected, using HTML bold formatting");
+                return PrintViaHtmlBold(receiptText, cleanPrinterName, config);
+            }
+
+            // Method 3: Fallback to file + shell print
             return PrintViaShell(receiptText, cleanPrinterName);
         }
         catch (Exception ex)
@@ -286,28 +300,58 @@ public class SimplePrinterService : IPrinterService
         IntPtr hPrinter = IntPtr.Zero;
         var docInfo = new DOC_INFO_1
         {
-            pDocName = "Kitchen Test Receipt",
+            pDocName = "Restaurant Order",
             pDatatype = "RAW"
         };
-        
+
         try
         {
-            if (OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
+            System.Diagnostics.Debug.WriteLine($"Attempting to open printer: {printerName}");
+
+            if (!OpenPrinter(printerName, out hPrinter, IntPtr.Zero))
             {
-                if (StartDocPrinter(hPrinter, 1, ref docInfo))
-                {
-                    if (StartPagePrinter(hPrinter))
-                    {
-                        byte[] bytes = Encoding.UTF8.GetBytes(text);
-                        int written;
-                        bool success = WritePrinter(hPrinter, bytes, bytes.Length, out written);
-                        EndPagePrinter(hPrinter);
-                        EndDocPrinter(hPrinter);
-                        return success;
-                    }
-                    EndDocPrinter(hPrinter);
-                }
+                var error = Marshal.GetLastWin32Error();
+                System.Diagnostics.Debug.WriteLine($"OpenPrinter failed with error: {error}");
+                return false;
             }
+
+            System.Diagnostics.Debug.WriteLine("Printer opened successfully");
+
+            if (!StartDocPrinter(hPrinter, 1, ref docInfo))
+            {
+                var error = Marshal.GetLastWin32Error();
+                System.Diagnostics.Debug.WriteLine($"StartDocPrinter failed with error: {error}");
+                return false;
+            }
+
+            System.Diagnostics.Debug.WriteLine("Document started");
+
+            if (!StartPagePrinter(hPrinter))
+            {
+                var error = Marshal.GetLastWin32Error();
+                System.Diagnostics.Debug.WriteLine($"StartPagePrinter failed with error: {error}");
+                EndDocPrinter(hPrinter);
+                return false;
+            }
+
+            System.Diagnostics.Debug.WriteLine("Page started");
+
+            byte[] bytes = Encoding.UTF8.GetBytes(text);
+            System.Diagnostics.Debug.WriteLine($"Sending {bytes.Length} bytes to printer");
+
+            int written;
+            bool success = WritePrinter(hPrinter, bytes, bytes.Length, out written);
+
+            System.Diagnostics.Debug.WriteLine($"WritePrinter result: {success}, Bytes written: {written}");
+
+            EndPagePrinter(hPrinter);
+            EndDocPrinter(hPrinter);
+
+            return success && written == bytes.Length;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"SendTextToPrinter exception: {ex.Message}");
             return false;
         }
         finally
@@ -317,6 +361,85 @@ public class SimplePrinterService : IPrinterService
         }
     }
     
+    private async Task<bool> PrintViaHtmlBold(string text, string printerName, PrinterConfiguration config)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("Creating HTML with bold formatting");
+
+            // Create HTML with bold text and darker font
+            var html = new StringBuilder();
+            html.AppendLine("<!DOCTYPE html>");
+            html.AppendLine("<html><head><meta charset='utf-8'>");
+            html.AppendLine("<style>");
+            html.AppendLine("body { font-family: 'Courier New', monospace; font-size: 14pt; font-weight: bold; }");
+            html.AppendLine(".header { font-size: 18pt; font-weight: 900; text-align: center; }");
+            html.AppendLine(".bold { font-weight: 900; }");
+            html.AppendLine(".section { font-weight: 900; margin-top: 10px; }");
+            html.AppendLine("</style></head><body>");
+
+            // Parse the text and wrap headers in bold tags
+            var lines = text.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            foreach (var line in lines)
+            {
+                var cleanLine = System.Text.RegularExpressions.Regex.Replace(line, @"[\x00-\x1F\x7F-\x9F]", "");
+
+                if (cleanLine.Contains("***") || cleanLine.Contains("===") ||
+                    cleanLine.Contains("Date:") || cleanLine.Contains("Time:") ||
+                    cleanLine.Contains("Configuration Test:") || cleanLine.Contains("Sample Order:") ||
+                    cleanLine.Contains("Printer:") || cleanLine.StartsWith("  "))
+                {
+                    html.AppendLine($"<div class='bold'>{System.Net.WebUtility.HtmlEncode(cleanLine)}</div>");
+                }
+                else if (cleanLine.Contains(config.RestaurantName) || cleanLine.Contains(config.KitchenLocation))
+                {
+                    html.AppendLine($"<div class='header'>{System.Net.WebUtility.HtmlEncode(cleanLine)}</div>");
+                }
+                else
+                {
+                    html.AppendLine($"<div>{System.Net.WebUtility.HtmlEncode(cleanLine)}</div>");
+                }
+            }
+
+            html.AppendLine("</body></html>");
+
+            // Save to temp HTML file
+            var tempFile = Path.Combine(Path.GetTempPath(), $"receipt_{Guid.NewGuid()}.html");
+            await File.WriteAllTextAsync(tempFile, html.ToString());
+
+            System.Diagnostics.Debug.WriteLine($"HTML file created: {tempFile}");
+
+            // Print HTML using default browser's print functionality
+            var processInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "cmd.exe",
+                Arguments = $"/c start /min \"\" \"{tempFile}\" && timeout /t 3 && powershell -Command \"(New-Object -ComObject WScript.Shell).SendKeys('^p')\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden
+            };
+
+            var process = System.Diagnostics.Process.Start(processInfo);
+            if (process != null)
+            {
+                await process.WaitForExitAsync();
+
+                // Cleanup after delay
+                await Task.Delay(5000);
+                try { File.Delete(tempFile); } catch { }
+
+                return process.ExitCode == 0;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"PrintViaHtmlBold exception: {ex.Message}");
+            return false;
+        }
+    }
+
     private async Task<bool> PrintViaShell(string text, string printerName)
     {
         try
