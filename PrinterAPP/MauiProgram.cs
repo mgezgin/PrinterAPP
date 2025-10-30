@@ -20,7 +20,14 @@ namespace PrinterAPP
     		builder.Logging.AddDebug();
 #endif
 
+            // Register services
             builder.Services.AddSingleton<IPrinterService, SimplePrinterService>();
+            builder.Services.AddSingleton<IEventStreamingService, EventStreamingService>();
+            builder.Services.AddSingleton<OrderPrintService>();
+
+            // Register pages
+            builder.Services.AddSingleton<MainPage>();
+
             return builder.Build();
         }
     }

@@ -358,41 +358,94 @@ public class SimplePrinterService : IPrinterService
     private string GenerateReceiptText(PrinterConfiguration config, string printerName)
     {
         var sb = new StringBuilder();
-        
-        // For thermal printers, add ESC/POS commands
-        if (IsThermalPrinter(printerName))
+        var isThermal = IsThermalPrinter(printerName);
+
+        // For thermal printers, add ESC/POS commands for darker printing
+        if (isThermal)
         {
             sb.Append("\x1B\x40"); // Initialize
             sb.Append("\x1B\x61\x01"); // Center align
+            sb.Append("\x1B\x45\x01"); // Bold ON for darker text
         }
-        
+
         sb.AppendLine("      *** TEST RECEIPT ***");
         sb.AppendLine($"       {config.RestaurantName}");
         sb.AppendLine($"       {config.KitchenLocation}");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x00"); // Bold OFF
+            sb.Append("\x1B\x61\x00"); // Left align
+        }
+
         sb.AppendLine("================================");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x01"); // Bold ON for headers
+        }
+
         sb.AppendLine($"Date: {DateTime.Now:dd/MM/yyyy}");
         sb.AppendLine($"Time: {DateTime.Now:HH:mm:ss}");
         sb.AppendLine($"Printer: {printerName}");
         sb.AppendLine("================================");
         sb.AppendLine("Configuration Test:");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x00"); // Bold OFF for details
+        }
+
         sb.AppendLine($"  API URL: {config.ApiBaseUrl}");
-        sb.AppendLine($"  Paper: {config.PaperWidth}mm");
-        sb.AppendLine($"  Auto Print: {config.AutoPrint}");
+        sb.AppendLine($"  Paper: {config.KitchenPaperWidth}mm");
+        sb.AppendLine($"  Auto Print: {config.KitchenAutoPrint}");
         sb.AppendLine("================================");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x01"); // Bold ON for sample order
+        }
+
         sb.AppendLine("Sample Order:");
         sb.AppendLine("  2x Burger Deluxe");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x00"); // Bold OFF for details
+        }
+
         sb.AppendLine("     [Large]");
         sb.AppendLine("     Note: No onions");
         sb.AppendLine("");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x01"); // Bold ON
+        }
+
         sb.AppendLine("  1x Caesar Salad");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x00"); // Bold OFF
+        }
+
         sb.AppendLine("     Extra dressing");
         sb.AppendLine("================================");
-        sb.AppendLine("      *** END OF TEST ***");
-        
-        if (IsThermalPrinter(printerName))
+
+        if (isThermal)
         {
-            sb.AppendLine("\x1B\x64\x05"); // Feed 5 lines
-            sb.AppendLine("\x1B\x69"); // Cut
+            sb.Append("\x1B\x61\x01"); // Center align
+            sb.Append("\x1B\x45\x01"); // Bold ON
+        }
+
+        sb.AppendLine("      *** END OF TEST ***");
+
+        if (isThermal)
+        {
+            sb.Append("\x1B\x45\x00"); // Bold OFF
+            sb.Append("\x1B\x64\x05"); // Feed 5 lines
+            sb.Append("\x1D\x56\x00"); // Full cut
         }
         else
         {
@@ -400,7 +453,7 @@ public class SimplePrinterService : IPrinterService
             sb.AppendLine("");
             sb.AppendLine("");
         }
-        
+
         return sb.ToString();
     }
     

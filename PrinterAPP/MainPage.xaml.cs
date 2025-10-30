@@ -8,14 +8,28 @@ namespace PrinterAPP;
 public partial class MainPage : ContentPage
 {
     private readonly IPrinterService _printerService;
+    private readonly IEventStreamingService _eventStreamingService;
+    private readonly OrderPrintService _orderPrintService;
+    private readonly ILogger<MainPage> _logger;
     private PrinterConfiguration _config;
     private bool _isServiceRunning = false;
 
-    public MainPage(IPrinterService printerService)
+    public MainPage(
+        IPrinterService printerService,
+        IEventStreamingService eventStreamingService,
+        OrderPrintService orderPrintService,
+        ILogger<MainPage> logger)
     {
         InitializeComponent();
         _printerService = printerService;
+        _eventStreamingService = eventStreamingService;
+        _orderPrintService = orderPrintService;
+        _logger = logger;
         _config = new PrinterConfiguration();
+
+        // Subscribe to events
+        _eventStreamingService.OrderReceived += OnOrderReceived;
+        _eventStreamingService.ConnectionStatusChanged += OnConnectionStatusChanged;
 
         // Initialize the UI asynchronously
         _ = InitializeAsync();
@@ -36,9 +50,16 @@ public partial class MainPage : ContentPage
             ApiUrlEntry.Text = _config.ApiBaseUrl;
             RestaurantNameEntry.Text = _config.RestaurantName;
             KitchenLocationEntry.Text = _config.KitchenLocation;
-            AutoPrintSwitch.IsToggled = _config.AutoPrint;
-            PrintCopiesEntry.Text = _config.PrintCopies.ToString();
-            PaperWidthPicker.SelectedIndex = _config.PaperWidth == 80 ? 0 : 1;
+
+            // Kitchen printer settings
+            KitchenAutoPrintSwitch.IsToggled = _config.KitchenAutoPrint;
+            KitchenPrintCopiesEntry.Text = _config.KitchenPrintCopies.ToString();
+            KitchenPaperWidthPicker.SelectedIndex = _config.KitchenPaperWidth == 80 ? 0 : 1;
+
+            // Cashier printer settings
+            CashierAutoPrintSwitch.IsToggled = _config.CashierAutoPrint;
+            CashierPrintCopiesEntry.Text = _config.CashierPrintCopies.ToString();
+            CashierPaperWidthPicker.SelectedIndex = _config.CashierPaperWidth == 80 ? 0 : 1;
 
             // Load available printers
             await LoadPrintersAsync();
@@ -65,24 +86,52 @@ public partial class MainPage : ContentPage
 
             if (printers != null && printers.Count > 0)
             {
-                PrinterPicker.ItemsSource = printers;
+                // Load both kitchen and cashier printer pickers
+                KitchenPrinterPicker.ItemsSource = printers;
+                CashierPrinterPicker.ItemsSource = printers;
 
-                // Select saved printer if it exists
-                if (!string.IsNullOrEmpty(_config.PrinterName))
+                // Select saved kitchen printer if it exists
+                if (!string.IsNullOrEmpty(_config.KitchenPrinterName))
                 {
-                    var savedPrinter = printers.FirstOrDefault(p => p.Contains(_config.PrinterName));
+                    var savedPrinter = printers.FirstOrDefault(p => p.Contains(_config.KitchenPrinterName));
                     if (savedPrinter != null)
                     {
-                        PrinterPicker.SelectedItem = savedPrinter;
+                        KitchenPrinterPicker.SelectedItem = savedPrinter;
                     }
                     else if (printers.Count > 0)
                     {
-                        PrinterPicker.SelectedIndex = 0;
+                        KitchenPrinterPicker.SelectedIndex = 0;
                     }
                 }
                 else if (printers.Count > 0)
                 {
-                    PrinterPicker.SelectedIndex = 0;
+                    KitchenPrinterPicker.SelectedIndex = 0;
+                }
+
+                // Select saved cashier printer if it exists
+                if (!string.IsNullOrEmpty(_config.CashierPrinterName))
+                {
+                    var savedPrinter = printers.FirstOrDefault(p => p.Contains(_config.CashierPrinterName));
+                    if (savedPrinter != null)
+                    {
+                        CashierPrinterPicker.SelectedItem = savedPrinter;
+                    }
+                    else if (printers.Count > 1)
+                    {
+                        CashierPrinterPicker.SelectedIndex = 1; // Default to second printer if available
+                    }
+                    else if (printers.Count > 0)
+                    {
+                        CashierPrinterPicker.SelectedIndex = 0;
+                    }
+                }
+                else if (printers.Count > 1)
+                {
+                    CashierPrinterPicker.SelectedIndex = 1; // Default to second printer
+                }
+                else if (printers.Count > 0)
+                {
+                    CashierPrinterPicker.SelectedIndex = 0;
                 }
             }
             else
@@ -99,20 +148,18 @@ public partial class MainPage : ContentPage
     private void UpdateServiceStatus()
     {
 #if WINDOWS
-        // This would typically check if a Windows service is running
-        // For now, we'll simulate it
-        _isServiceRunning = _config.IsServiceRunning;
-        
+        _isServiceRunning = _eventStreamingService.IsListening;
+
         if (_isServiceRunning)
         {
-            StatusLabel.Text = "Service is running";
+            StatusLabel.Text = "SSE Service is running";
             StatusLabel.TextColor = Colors.Green;
             ServiceToggleButton.Text = "Stop Service";
             ServiceToggleButton.BackgroundColor = Colors.Red;
         }
         else
         {
-            StatusLabel.Text = "Service is stopped";
+            StatusLabel.Text = "SSE Service is stopped";
             StatusLabel.TextColor = Colors.Orange;
             ServiceToggleButton.Text = "Start Service";
             ServiceToggleButton.BackgroundColor = Colors.Green;
@@ -131,38 +178,39 @@ public partial class MainPage : ContentPage
         try
         {
             ServiceToggleButton.IsEnabled = false;
-            
+
             if (_isServiceRunning)
             {
-                // Stop service
-                StatusLabel.Text = "Stopping service...";
+                // Stop SSE service
+                StatusLabel.Text = "Stopping SSE service...";
                 StatusLabel.TextColor = Colors.Orange;
-                
-                // Simulate service stop (in real app, you'd call Windows service API)
-                await Task.Delay(1000);
+
+                await _eventStreamingService.StopListeningAsync();
                 _isServiceRunning = false;
                 _config.IsServiceRunning = false;
-                
-                await DisplayAlert("Success", "Service stopped successfully", "OK");
+                await _printerService.SaveConfigurationAsync(_config);
+
+                await DisplayAlert("Success", "SSE service stopped successfully", "OK");
             }
             else
             {
-                // Start service
-                StatusLabel.Text = "Starting service...";
+                // Start SSE service
+                StatusLabel.Text = "Starting SSE service...";
                 StatusLabel.TextColor = Colors.Orange;
-                
-                // Simulate service start
-                await Task.Delay(1000);
+
+                await _eventStreamingService.StartListeningAsync();
                 _isServiceRunning = true;
                 _config.IsServiceRunning = true;
-                
-                await DisplayAlert("Success", "Service started successfully", "OK");
+                await _printerService.SaveConfigurationAsync(_config);
+
+                await DisplayAlert("Success", "SSE service started successfully. Now listening for orders.", "OK");
             }
-            
+
             UpdateServiceStatus();
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to toggle SSE service");
             await DisplayAlert("Error", $"Failed to toggle service: {ex.Message}", "OK");
         }
         finally
@@ -170,6 +218,53 @@ public partial class MainPage : ContentPage
             ServiceToggleButton.IsEnabled = true;
         }
 #endif
+    }
+
+    private void OnOrderReceived(object? sender, OrderEvent orderEvent)
+    {
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            try
+            {
+                _logger.LogInformation("Order received: #{OrderId} - {EventType}",
+                    orderEvent.Order?.Id, orderEvent.EventType);
+
+                if (orderEvent.Order == null)
+                {
+                    return;
+                }
+
+                // Print to kitchen
+                await _orderPrintService.PrintOrderAsync(
+                    orderEvent.Order,
+                    OrderPrintService.PrinterType.Kitchen);
+
+                // Print to cashier
+                await _orderPrintService.PrintOrderAsync(
+                    orderEvent.Order,
+                    OrderPrintService.PrinterType.Cashier);
+
+                StatusLabel.Text = $"Order #{orderEvent.Order.Id} printed";
+                StatusLabel.TextColor = Colors.Green;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing order");
+                StatusLabel.Text = "Error processing order";
+                StatusLabel.TextColor = Colors.Red;
+            }
+        });
+    }
+
+    private void OnConnectionStatusChanged(object? sender, string status)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            StatusLabel.Text = status;
+            StatusLabel.TextColor = status.Contains("Error") || status.Contains("Disconnected")
+                ? Colors.Red
+                : Colors.Green;
+        });
     }
 
     private async void OnTestApiClicked(object sender, EventArgs e)
@@ -247,17 +342,29 @@ public partial class MainPage : ContentPage
             _config.ApiBaseUrl = ApiUrlEntry.Text;
             _config.RestaurantName = RestaurantNameEntry.Text;
             _config.KitchenLocation = KitchenLocationEntry.Text;
-            _config.AutoPrint = AutoPrintSwitch.IsToggled;
-            _config.PaperWidth = PaperWidthPicker.SelectedIndex == 0 ? 80 : 58;
 
-            if (int.TryParse(PrintCopiesEntry.Text, out int copies))
+            // Kitchen printer settings
+            _config.KitchenAutoPrint = KitchenAutoPrintSwitch.IsToggled;
+            _config.KitchenPaperWidth = KitchenPaperWidthPicker.SelectedIndex == 0 ? 80 : 58;
+            if (int.TryParse(KitchenPrintCopiesEntry.Text, out int kitchenCopies))
             {
-                _config.PrintCopies = Math.Max(1, Math.Min(copies, 5)); // Limit 1-5
+                _config.KitchenPrintCopies = Math.Max(1, Math.Min(kitchenCopies, 5)); // Limit 1-5
+            }
+            if (KitchenPrinterPicker.SelectedItem != null)
+            {
+                _config.KitchenPrinterName = KitchenPrinterPicker.SelectedItem.ToString()!.Replace(" (Default)", "").Trim();
             }
 
-            if (PrinterPicker.SelectedItem != null)
+            // Cashier printer settings
+            _config.CashierAutoPrint = CashierAutoPrintSwitch.IsToggled;
+            _config.CashierPaperWidth = CashierPaperWidthPicker.SelectedIndex == 0 ? 80 : 58;
+            if (int.TryParse(CashierPrintCopiesEntry.Text, out int cashierCopies))
             {
-                _config.PrinterName = PrinterPicker.SelectedItem.ToString();
+                _config.CashierPrintCopies = Math.Max(1, Math.Min(cashierCopies, 5)); // Limit 1-5
+            }
+            if (CashierPrinterPicker.SelectedItem != null)
+            {
+                _config.CashierPrinterName = CashierPrinterPicker.SelectedItem.ToString()!.Replace(" (Default)", "").Trim();
             }
 
             // Save configuration
@@ -280,38 +387,45 @@ public partial class MainPage : ContentPage
     {
         try
         {
-            if (PrinterPicker.SelectedItem == null)
+            if (KitchenPrinterPicker.SelectedItem == null && CashierPrinterPicker.SelectedItem == null)
             {
-                await DisplayAlert("Error", "Please select a printer first", "OK");
+                await DisplayAlert("Error", "Please select at least one printer first", "OK");
                 return;
             }
 
             var button = sender as Button;
             if (button != null) button.IsEnabled = false;
 
-            StatusLabel.Text = "Printing test receipt...";
+            StatusLabel.Text = "Printing test receipts...";
             StatusLabel.TextColor = Colors.Orange;
 
             // Update config with current UI values
             _config.RestaurantName = RestaurantNameEntry.Text;
             _config.KitchenLocation = KitchenLocationEntry.Text;
-            _config.PaperWidth = PaperWidthPicker.SelectedIndex == 0 ? 80 : 58;
+            _config.KitchenPaperWidth = KitchenPaperWidthPicker.SelectedIndex == 0 ? 80 : 58;
+            _config.CashierPaperWidth = CashierPaperWidthPicker.SelectedIndex == 0 ? 80 : 58;
 
-            var printerName = PrinterPicker.SelectedItem.ToString();
-            var success = await _printerService.PrintTestReceiptAsync(printerName, _config);
+            var results = new List<string>();
 
-            if (success)
+            // Test kitchen printer
+            if (KitchenPrinterPicker.SelectedItem != null)
             {
-                StatusLabel.Text = "Test receipt printed";
-                StatusLabel.TextColor = Colors.Green;
-                await DisplayAlert("Success", "Test receipt printed successfully!", "OK");
+                var printerName = KitchenPrinterPicker.SelectedItem.ToString();
+                var success = await _printerService.PrintTestReceiptAsync(printerName!, _config);
+                results.Add($"Kitchen printer: {(success ? "✓ Success" : "✗ Failed")}");
             }
-            else
+
+            // Test cashier printer
+            if (CashierPrinterPicker.SelectedItem != null)
             {
-                StatusLabel.Text = "Print failed";
-                StatusLabel.TextColor = Colors.Red;
-                await DisplayAlert("Error", "Failed to print test receipt. Please check your printer.", "OK");
+                var printerName = CashierPrinterPicker.SelectedItem.ToString();
+                var success = await _printerService.PrintTestReceiptAsync(printerName!, _config);
+                results.Add($"Cashier printer: {(success ? "✓ Success" : "✗ Failed")}");
             }
+
+            StatusLabel.Text = "Test receipts printed";
+            StatusLabel.TextColor = Colors.Green;
+            await DisplayAlert("Test Results", string.Join("\n", results), "OK");
         }
         catch (Exception ex)
         {
@@ -344,13 +458,25 @@ public partial class MainPage : ContentPage
                 ApiUrlEntry.Text = _config.ApiBaseUrl;
                 RestaurantNameEntry.Text = _config.RestaurantName;
                 KitchenLocationEntry.Text = _config.KitchenLocation;
-                AutoPrintSwitch.IsToggled = _config.AutoPrint;
-                PrintCopiesEntry.Text = _config.PrintCopies.ToString();
-                PaperWidthPicker.SelectedIndex = _config.PaperWidth == 80 ? 0 : 1;
 
-                if (PrinterPicker.ItemsSource != null && PrinterPicker.ItemsSource.Cast<object>().Any())
+                // Kitchen printer settings
+                KitchenAutoPrintSwitch.IsToggled = _config.KitchenAutoPrint;
+                KitchenPrintCopiesEntry.Text = _config.KitchenPrintCopies.ToString();
+                KitchenPaperWidthPicker.SelectedIndex = _config.KitchenPaperWidth == 80 ? 0 : 1;
+
+                // Cashier printer settings
+                CashierAutoPrintSwitch.IsToggled = _config.CashierAutoPrint;
+                CashierPrintCopiesEntry.Text = _config.CashierPrintCopies.ToString();
+                CashierPaperWidthPicker.SelectedIndex = _config.CashierPaperWidth == 80 ? 0 : 1;
+
+                if (KitchenPrinterPicker.ItemsSource != null && KitchenPrinterPicker.ItemsSource.Cast<object>().Any())
                 {
-                    PrinterPicker.SelectedIndex = 0;
+                    KitchenPrinterPicker.SelectedIndex = 0;
+                }
+
+                if (CashierPrinterPicker.ItemsSource != null && CashierPrinterPicker.ItemsSource.Cast<object>().Any())
+                {
+                    CashierPrinterPicker.SelectedIndex = CashierPrinterPicker.ItemsSource.Cast<object>().Count() > 1 ? 1 : 0;
                 }
 
                 StatusLabel.Text = "Settings reset to default";
