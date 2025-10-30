@@ -255,7 +255,7 @@ public class SimplePrinterService : IPrinterService
         return printers;
     }
 
-    public Task<bool> PrintTestReceiptAsync(string printerName, PrinterConfiguration config)
+    public async Task<bool> PrintTestReceiptAsync(string printerName, PrinterConfiguration config)
     {
         try
         {
@@ -263,35 +263,58 @@ public class SimplePrinterService : IPrinterService
             var cleanPrinterName = printerName.Replace(" (Default)", "").Trim();
 
             var isThermal = IsThermalPrinter(cleanPrinterName);
-            System.Diagnostics.Debug.WriteLine($"Printer: {cleanPrinterName}, Is Thermal: {isThermal}");
+            System.Diagnostics.Debug.WriteLine($"======================================");
+            System.Diagnostics.Debug.WriteLine($"Printer: {cleanPrinterName}");
+            System.Diagnostics.Debug.WriteLine($"Is Thermal: {isThermal}");
+            System.Diagnostics.Debug.WriteLine($"======================================");
 
-            // Generate receipt text
+            // Generate receipt text with ESC/POS commands
             var receiptText = GenerateReceiptText(config, cleanPrinterName);
+            System.Diagnostics.Debug.WriteLine($"Receipt text length: {receiptText.Length} characters");
 
-            // Method 1: Try direct RAW printing (works for thermal printers)
-            System.Diagnostics.Debug.WriteLine("Attempting direct RAW printing...");
-            if (SendTextToPrinter(cleanPrinterName, receiptText))
+            // For thermal printers (EPSON), use direct RAW printing
+            if (isThermal)
             {
-                System.Diagnostics.Debug.WriteLine("Direct RAW printing succeeded");
-                return Task.FromResult(true);
+                System.Diagnostics.Debug.WriteLine("THERMAL PRINTER: Using direct RAW mode");
+
+                // Try multiple times with different approaches
+                for (int attempt = 1; attempt <= 3; attempt++)
+                {
+                    System.Diagnostics.Debug.WriteLine($"--- Attempt {attempt} ---");
+
+                    if (SendTextToPrinter(cleanPrinterName, receiptText))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"✓ Direct RAW printing succeeded on attempt {attempt}");
+                        return true;
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"✗ Attempt {attempt} failed");
+                    await Task.Delay(500); // Small delay between attempts
+                }
+
+                // If all RAW attempts failed, try writing directly to printer port
+                System.Diagnostics.Debug.WriteLine("All RAW attempts failed, trying port-based printing...");
+                if (await TryPrintToPort(cleanPrinterName, receiptText))
+                {
+                    System.Diagnostics.Debug.WriteLine("✓ Port-based printing succeeded");
+                    return true;
+                }
+            }
+            else
+            {
+                // Non-thermal printer - use HTML
+                System.Diagnostics.Debug.WriteLine("NON-THERMAL PRINTER: Using HTML bold formatting");
+                return await PrintViaHtmlBold(receiptText, cleanPrinterName, config);
             }
 
-            System.Diagnostics.Debug.WriteLine("Direct RAW printing failed, trying alternative methods...");
-
-            // Method 2: For non-thermal printers, try HTML printing with bold tags
-            if (!isThermal)
-            {
-                System.Diagnostics.Debug.WriteLine("Non-thermal printer detected, using HTML bold formatting");
-                return PrintViaHtmlBold(receiptText, cleanPrinterName, config);
-            }
-
-            // Method 3: Fallback to file + shell print
-            return PrintViaShell(receiptText, cleanPrinterName);
+            System.Diagnostics.Debug.WriteLine("✗ All printing methods failed");
+            return false;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Print error: {ex.Message}");
-            return Task.FromResult(false);
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
+            return false;
         }
     }
     
@@ -478,6 +501,99 @@ public class SimplePrinterService : IPrinterService
         }
     }
     
+    private async Task<bool> TryPrintToPort(string printerName, string text)
+    {
+        try
+        {
+            System.Diagnostics.Debug.WriteLine("Attempting port-based printing...");
+
+            // Get the printer port using WMI
+            string? portName = null;
+
+#if WINDOWS
+            try
+            {
+                using var searcher = new System.Management.ManagementObjectSearcher(
+                    $"SELECT * FROM Win32_Printer WHERE Name = '{printerName.Replace("'", "''")}'");
+
+                foreach (System.Management.ManagementObject printer in searcher.Get())
+                {
+                    portName = printer["PortName"]?.ToString();
+                    System.Diagnostics.Debug.WriteLine($"Found port: {portName}");
+                    break;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"WMI query failed: {ex.Message}");
+            }
+#endif
+
+            if (string.IsNullOrEmpty(portName))
+            {
+                System.Diagnostics.Debug.WriteLine("Could not determine printer port");
+                return false;
+            }
+
+            // For network printers, port might be an IP address
+            // For local printers, it might be USB001, LPT1, etc.
+            System.Diagnostics.Debug.WriteLine($"Printer port: {portName}");
+
+            // Try to write directly to the port
+            if (portName.StartsWith("USB") || portName.StartsWith("LPT"))
+            {
+                System.Diagnostics.Debug.WriteLine($"Writing to local port: {portName}");
+
+                // For local ports, use the printer name with OpenPrinter
+                // This is actually what we already tried, so skip
+                return false;
+            }
+            else if (System.Net.IPAddress.TryParse(portName.Split(':')[0], out _))
+            {
+                // Network printer - try direct TCP/IP
+                System.Diagnostics.Debug.WriteLine($"Network printer detected: {portName}");
+                return await PrintToNetworkPrinter(portName, text);
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"TryPrintToPort exception: {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> PrintToNetworkPrinter(string ipAddress, string text)
+    {
+        try
+        {
+            var parts = ipAddress.Split(':');
+            var ip = parts[0];
+            var port = parts.Length > 1 ? int.Parse(parts[1]) : 9100; // Default ESC/POS port
+
+            System.Diagnostics.Debug.WriteLine($"Connecting to {ip}:{port}");
+
+            using var client = new System.Net.Sockets.TcpClient();
+            await client.ConnectAsync(ip, port);
+
+            using var stream = client.GetStream();
+            var bytes = Encoding.UTF8.GetBytes(text);
+
+            System.Diagnostics.Debug.WriteLine($"Sending {bytes.Length} bytes to network printer");
+            await stream.WriteAsync(bytes, 0, bytes.Length);
+            await stream.FlushAsync();
+
+            System.Diagnostics.Debug.WriteLine("Data sent successfully to network printer");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"PrintToNetworkPrinter exception: {ex.Message}");
+            return false;
+        }
+    }
+
     private string GenerateReceiptText(PrinterConfiguration config, string printerName)
     {
         var sb = new StringBuilder();
