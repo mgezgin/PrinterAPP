@@ -24,9 +24,11 @@ namespace PrinterAPP
             builder.Services.AddSingleton<IPrinterService, SimplePrinterService>();
             builder.Services.AddSingleton<IEventStreamingService, EventStreamingService>();
             builder.Services.AddSingleton<OrderPrintService>();
+            builder.Services.AddSingleton<OrderHistoryService>();
 
             // Register pages
             builder.Services.AddSingleton<MainPage>();
+            builder.Services.AddSingleton<OrderManagementPage>();
 
             return builder.Build();
         }

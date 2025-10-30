@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="PrinterAPP.OrderManagementPage"
+             Title="Order Management">
+
+    <Grid Padding="20" BackgroundColor="#F5F5F5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Frame Grid.Row="0" BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True" Margin="0,0,0,15">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                <VerticalStackLayout>
+                    <Label Text="Order History"
+                           FontSize="24"
+                           FontAttributes="Bold"/>
+                    <Label x:Name="StatusLabel"
+                           Text="No orders received yet"
+                           FontSize="14"
+                           TextColor="Gray"/>
+                </VerticalStackLayout>
+
+                <Button Text="Refresh"
+                        Grid.Column="1"
+                        BackgroundColor="#2196F3"
+                        TextColor="White"
+                        CornerRadius="20"
+                        WidthRequest="100"
+                        Margin="10,0,10,0"
+                        Clicked="OnRefreshClicked"/>
+
+                <Button Text="Clear History"
+                        Grid.Column="2"
+                        BackgroundColor="#FF9800"
+                        TextColor="White"
+                        CornerRadius="20"
+                        WidthRequest="120"
+                        Margin="0,0,10,0"
+                        Clicked="OnClearHistoryClicked"/>
+
+                <Button x:Name="ServiceStatusButton"
+                        Grid.Column="3"
+                        Text="Service: Stopped"
+                        BackgroundColor="Orange"
+                        TextColor="White"
+                        CornerRadius="20"
+                        WidthRequest="150"
+                        IsEnabled="False"/>
+            </Grid>
+        </Frame>
+
+        <!-- Orders List -->
+        <Frame Grid.Row="1" BackgroundColor="White" Padding="10" CornerRadius="10" HasShadow="True">
+            <CollectionView x:Name="OrdersCollectionView"
+                            SelectionMode="None">
+                <CollectionView.EmptyView>
+                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center" Spacing="10">
+                        <Label Text="📋" FontSize="48" HorizontalOptions="Center"/>
+                        <Label Text="No orders yet"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               HorizontalOptions="Center"/>
+                        <Label Text="Orders will appear here when received via SSE"
+                               FontSize="14"
+                               TextColor="Gray"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"/>
+                    </VerticalStackLayout>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="15" Margin="5" CornerRadius="10" HasShadow="True" BackgroundColor="WhiteSmoke">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="15" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="8">
+
+                                <!-- Status Indicator -->
+                                <BoxView Grid.Column="0"
+                                         Grid.RowSpan="4"
+                                         WidthRequest="5"
+                                         CornerRadius="2"
+                                         Color="{Binding StatusColor}"/>
+
+                                <!-- Order Header -->
+                                <VerticalStackLayout Grid.Column="1" Grid.Row="0">
+                                    <Label Text="{Binding DisplayText}"
+                                           FontSize="16"
+                                           FontAttributes="Bold"/>
+                                    <Label Text="{Binding ReceivedAtText, StringFormat='Received: {0}'}"
+                                           FontSize="12"
+                                           TextColor="Gray"/>
+                                </VerticalStackLayout>
+
+                                <!-- Order Details -->
+                                <VerticalStackLayout Grid.Column="1" Grid.Row="1" Spacing="2">
+                                    <Label Text="{Binding Order.CreatedAt, StringFormat='Created: {0:yyyy-MM-dd HH:mm}'}"
+                                           FontSize="12"
+                                           TextColor="Gray"/>
+                                    <Label Text="{Binding Order.WaiterName, StringFormat='Waiter: {0}'}"
+                                           FontSize="12"
+                                           TextColor="Gray"
+                                           IsVisible="{Binding Order.WaiterName, Converter={StaticResource StringNotEmptyConverter}}"/>
+                                    <Label Text="{Binding Order.Status, StringFormat='Status: {0}'}"
+                                           FontSize="12"
+                                           TextColor="Gray"/>
+                                </VerticalStackLayout>
+
+                                <!-- Items List -->
+                                <CollectionView Grid.Column="1" Grid.Row="2"
+                                                ItemsSource="{Binding Order.Items}"
+                                                Margin="0,5,0,5">
+                                    <CollectionView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="5" Padding="0,2">
+                                                <Label Grid.Column="0"
+                                                       Text="{Binding Quantity, StringFormat='{0}x'}"
+                                                       FontSize="12"
+                                                       FontAttributes="Bold"/>
+                                                <Label Grid.Column="1"
+                                                       Text="{Binding Name}"
+                                                       FontSize="12"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </CollectionView.ItemTemplate>
+                                </CollectionView>
+
+                                <!-- Print Status -->
+                                <HorizontalStackLayout Grid.Column="1" Grid.Row="3" Spacing="10">
+                                    <Label Text="{Binding KitchenPrinted, StringFormat='Kitchen: {0}'}"
+                                           FontSize="12"
+                                           TextColor="{Binding KitchenPrinted, Converter={StaticResource BoolToColorConverter}}"/>
+                                    <Label Text="{Binding CashierPrinted, StringFormat='Cashier: {0}'}"
+                                           FontSize="12"
+                                           TextColor="{Binding CashierPrinted, Converter={StaticResource BoolToColorConverter}}"/>
+                                </HorizontalStackLayout>
+
+                                <!-- Action Buttons -->
+                                <VerticalStackLayout Grid.Column="2" Grid.RowSpan="4" Spacing="10" VerticalOptions="Center">
+                                    <Button Text="🍳 Kitchen"
+                                            BackgroundColor="#4CAF50"
+                                            TextColor="White"
+                                            CornerRadius="15"
+                                            WidthRequest="100"
+                                            HeightRequest="40"
+                                            FontSize="12"
+                                            Clicked="OnPrintKitchenClicked"
+                                            CommandParameter="{Binding Order.Id}"/>
+
+                                    <Button Text="💰 Cashier"
+                                            BackgroundColor="#2196F3"
+                                            TextColor="White"
+                                            CornerRadius="15"
+                                            WidthRequest="100"
+                                            HeightRequest="40"
+                                            FontSize="12"
+                                            Clicked="OnPrintCashierClicked"
+                                            CommandParameter="{Binding Order.Id}"/>
+
+                                    <Button Text="📄 Both"
+                                            BackgroundColor="#FF9800"
+                                            TextColor="White"
+                                            CornerRadius="15"
+                                            WidthRequest="100"
+                                            HeightRequest="40"
+                                            FontSize="12"
+                                            Clicked="OnPrintBothClicked"
+                                            CommandParameter="{Binding Order.Id}"/>
+                                </VerticalStackLayout>
+                            </Grid>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Frame>
+    </Grid>
+</ContentPage>

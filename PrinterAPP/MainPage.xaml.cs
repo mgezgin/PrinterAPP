@@ -11,6 +11,7 @@ public partial class MainPage : ContentPage
     private readonly IPrinterService _printerService;
     private readonly IEventStreamingService _eventStreamingService;
     private readonly OrderPrintService _orderPrintService;
+    private readonly OrderHistoryService _orderHistoryService;
     private readonly ILogger<MainPage> _logger;
     private PrinterConfiguration _config;
     private bool _isServiceRunning = false;
@@ -19,12 +20,14 @@ public partial class MainPage : ContentPage
         IPrinterService printerService,
         IEventStreamingService eventStreamingService,
         OrderPrintService orderPrintService,
+        OrderHistoryService orderHistoryService,
         ILogger<MainPage> logger)
     {
         InitializeComponent();
         _printerService = printerService;
         _eventStreamingService = eventStreamingService;
         _orderPrintService = orderPrintService;
+        _orderHistoryService = orderHistoryService;
         _logger = logger;
         _config = new PrinterConfiguration();
 
@@ -235,15 +238,21 @@ public partial class MainPage : ContentPage
                     return;
                 }
 
+                // Add order to history
+                _orderHistoryService.AddOrder(orderEvent);
+
                 // Print to kitchen
-                await _orderPrintService.PrintOrderAsync(
+                var kitchenSuccess = await _orderPrintService.PrintOrderAsync(
                     orderEvent.Order,
                     OrderPrintService.PrinterType.Kitchen);
 
                 // Print to cashier
-                await _orderPrintService.PrintOrderAsync(
+                var cashierSuccess = await _orderPrintService.PrintOrderAsync(
                     orderEvent.Order,
                     OrderPrintService.PrinterType.Cashier);
+
+                // Update print status in history
+                _orderHistoryService.UpdatePrintStatus(orderEvent.Order.Id, kitchenSuccess, cashierSuccess);
 
                 StatusLabel.Text = $"Order #{orderEvent.Order.Id} printed";
                 StatusLabel.TextColor = Colors.Green;

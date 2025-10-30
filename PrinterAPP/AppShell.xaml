@@ -6,9 +6,18 @@
     xmlns:local="clr-namespace:PrinterAPP"
     Title="PrinterAPP">
 
-    <ShellContent
-        Title="Home"
-        ContentTemplate="{DataTemplate local:MainPage}"
-        Route="MainPage" />
+    <TabBar>
+        <ShellContent
+            Title="Settings"
+            Icon="dotnet_bot.png"
+            ContentTemplate="{DataTemplate local:MainPage}"
+            Route="MainPage" />
+
+        <ShellContent
+            Title="Orders"
+            Icon="dotnet_bot.png"
+            ContentTemplate="{DataTemplate local:OrderManagementPage}"
+            Route="OrderManagementPage" />
+    </TabBar>
 
 </Shell>
