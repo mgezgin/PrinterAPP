@@ -21,7 +21,8 @@ public class RequestLogService
 
     public void LogSSEConnection(string endpoint, string status, string? url = null, Dictionary<string, string>? headers = null)
     {
-        var entry = CreateLogEntry(LogType.SSE, $"SSE {endpoint}", status, string.Empty);
+        var source = endpoint.ToLower() == "kitchen" ? "Kitchen" : endpoint.ToLower() == "service" ? "Service" : "General";
+        var entry = CreateLogEntry(LogType.SSE, $"SSE {endpoint}", status, string.Empty, source);
         entry.RequestUrl = url;
         entry.RequestHeaders = headers;
         AddLogEntry(entry);
@@ -29,52 +30,56 @@ public class RequestLogService
 
     public void LogSSEResponse(string endpoint, int statusCode, Dictionary<string, string>? responseHeaders = null)
     {
-        var entry = CreateLogEntry(LogType.SSE, $"SSE Response {endpoint}", $"Status: {statusCode}", string.Empty);
+        var source = endpoint.ToLower() == "kitchen" ? "Kitchen" : endpoint.ToLower() == "service" ? "Service" : "General";
+        var entry = CreateLogEntry(LogType.SSE, $"SSE Response {endpoint}", $"Status: {statusCode}", string.Empty, source);
         entry.ResponseStatusCode = statusCode;
         entry.ResponseHeaders = responseHeaders;
         AddLogEntry(entry);
     }
 
-    public void LogSSEEvent(string eventType, string data, string? rawData = null)
+    public void LogSSEEvent(string eventType, string data, string? rawData = null, string? source = null)
     {
-        var entry = CreateLogEntry(LogType.SSE, $"Event: {eventType}", "Received", data);
+        var entry = CreateLogEntry(LogType.SSE, $"Event: {eventType}", "Received", data, source ?? "General");
         entry.ResponseBody = rawData ?? data;
         AddLogEntry(entry);
     }
 
-    public void LogOrderReceived(int orderId, int tableNumber, decimal total, string? orderJson = null)
+    public void LogOrderReceived(int orderId, int tableNumber, decimal total, string? orderJson = null, string? source = null)
     {
-        var entry = CreateLogEntry(LogType.Order, $"Order #{orderId}", $"Table {tableNumber}", $"${total:F2}");
+        var entry = CreateLogEntry(LogType.Order, $"Order #{orderId}", $"Table {tableNumber}", $"${total:F2}", source ?? "General");
         entry.ResponseBody = orderJson;
         AddLogEntry(entry);
     }
 
     public void LogPrintRequest(string printerType, int orderId, string printerName, string? printContent = null)
     {
-        var entry = CreateLogEntry(LogType.PrintRequest, $"{printerType} Print", $"Order #{orderId}", $"Printer: {printerName}");
+        var source = printerType.ToLower() == "kitchen" ? "Kitchen" : "Service";
+        var entry = CreateLogEntry(LogType.PrintRequest, $"{printerType} Print", $"Order #{orderId}", $"Printer: {printerName}", source);
         entry.RequestBody = printContent;
         AddLogEntry(entry);
     }
 
     public void LogPrintResponse(string printerType, int orderId, bool success, string? error = null, string? details = null)
     {
+        var source = printerType.ToLower() == "kitchen" ? "Kitchen" : "Service";
         var status = success ? "✓ Success" : "✗ Failed";
         var message = error ?? "Printed successfully";
         var entry = CreateLogEntry(success ? LogType.PrintSuccess : LogType.PrintError,
                $"{printerType} Result",
                $"Order #{orderId} - {status}",
-               message);
+               message,
+               source);
         entry.ResponseBody = details;
         AddLogEntry(entry);
     }
 
     public void LogError(string operation, string message, string? details = null)
     {
-        var entry = CreateLogEntry(LogType.Error, operation, $"Error: {message}", details ?? string.Empty);
+        var entry = CreateLogEntry(LogType.Error, operation, $"Error: {message}", details ?? string.Empty, "General");
         AddLogEntry(entry);
     }
 
-    private LogEntry CreateLogEntry(LogType type, string operation, string message, string details)
+    private LogEntry CreateLogEntry(LogType type, string operation, string message, string details, string source = "General")
     {
         return new LogEntry
         {
@@ -82,7 +87,8 @@ public class RequestLogService
             Type = type,
             Operation = operation,
             Message = message,
-            Details = details
+            Details = details,
+            Source = source
         };
     }
 
@@ -141,6 +147,7 @@ public class LogEntry
     public string Operation { get; set; } = string.Empty;
     public string Message { get; set; } = string.Empty;
     public string Details { get; set; } = string.Empty;
+    public string Source { get; set; } = "General"; // Kitchen, Service, or General
 
     // HTTP Request Details
     public string? RequestUrl { get; set; }
