@@ -744,14 +744,26 @@ public class SimplePrinterService : IPrinterService
             if (File.Exists(_configPath))
             {
                 var json = await File.ReadAllTextAsync(_configPath);
-                return JsonSerializer.Deserialize<PrinterConfiguration>(json) ?? new PrinterConfiguration();
+                var config = JsonSerializer.Deserialize<PrinterConfiguration>(json) ?? new PrinterConfiguration();
+
+                // Migration: Update old localhost:5221 URLs to https://localhost:44386
+                if (config.ApiBaseUrl == "http://localhost:5221" ||
+                    config.ApiBaseUrl == "https://localhost:5221")
+                {
+                    config.ApiBaseUrl = "https://localhost:44386";
+                    // Save the updated configuration
+                    await SaveConfigurationAsync(config);
+                    System.Diagnostics.Debug.WriteLine("Migrated API URL from localhost:5221 to localhost:44386");
+                }
+
+                return config;
             }
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error loading config: {ex.Message}");
         }
-        
+
         return new PrinterConfiguration();
     }
 
