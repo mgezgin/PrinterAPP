@@ -44,8 +44,8 @@
                     <Label Text="API Base URL" FontSize="14" TextColor="Gray"/>
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Entry x:Name="ApiUrlEntry"
-                               Placeholder="http://localhost:5221"
-                               Text="http://localhost:5221"/>
+                               Placeholder="https://localhost:44386"
+                               Text="https://localhost:44386"/>
                         <Button Text="Test"
                                 Grid.Column="1"
                                 BackgroundColor="#2196F3"

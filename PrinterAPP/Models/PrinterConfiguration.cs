@@ -10,7 +10,7 @@ namespace PrinterAPP.Models;
 
 public class PrinterConfiguration
 {
-    public string ApiBaseUrl { get; set; } = "http://localhost:5221";
+    public string ApiBaseUrl { get; set; } = "https://localhost:44386";
 
     // Kitchen Printer Settings
     public string KitchenPrinterName { get; set; } = "";
