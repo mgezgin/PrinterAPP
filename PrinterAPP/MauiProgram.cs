@@ -22,6 +22,7 @@ namespace PrinterAPP
 
             // Register services
             builder.Services.AddSingleton<IPrinterService, SimplePrinterService>();
+            builder.Services.AddSingleton<RequestLogService>();
             builder.Services.AddSingleton<IEventStreamingService, EventStreamingService>();
             builder.Services.AddSingleton<OrderPrintService>();
             builder.Services.AddSingleton<OrderHistoryService>();

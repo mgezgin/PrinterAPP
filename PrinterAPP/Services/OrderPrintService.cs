@@ -7,6 +7,7 @@ namespace PrinterAPP.Services;
 public class OrderPrintService
 {
     private readonly IPrinterService _printerService;
+    private readonly RequestLogService _requestLogService;
     private readonly ILogger<OrderPrintService> _logger;
 
     // ESC/POS Commands for MAXIMUM darkness printing
@@ -27,9 +28,13 @@ public class OrderPrintService
     private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
     private const string EXTRA_DARK_OFF = ESC_BOLD_OFF + ESC_EMPHASIZED_OFF; // Turn off all emphasis
 
-    public OrderPrintService(IPrinterService printerService, ILogger<OrderPrintService> logger)
+    public OrderPrintService(
+        IPrinterService printerService,
+        RequestLogService requestLogService,
+        ILogger<OrderPrintService> logger)
     {
         _printerService = printerService;
+        _requestLogService = requestLogService;
         _logger = logger;
     }
 
@@ -68,8 +73,12 @@ public class OrderPrintService
             if (string.IsNullOrWhiteSpace(printerName))
             {
                 _logger.LogWarning("No printer configured for {PrinterType}", printerType);
+                _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, false, "No printer configured");
                 return false;
             }
+
+            // Log print request
+            _requestLogService.LogPrintRequest(printerType.ToString(), order.Id, printerName);
 
             string content = printerType == PrinterType.Kitchen
                 ? FormatKitchenReceipt(order, config, paperWidth)
@@ -87,10 +96,16 @@ public class OrderPrintService
                 }
             }
 
+            // Log print response
             if (success)
             {
                 _logger.LogInformation("Successfully printed order #{OrderId} to {PrinterType} printer ({Copies} copies)",
                     order.Id, printerType, copies);
+                _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
+            }
+            else
+            {
+                _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, false, "Print operation failed");
             }
 
             return success;
@@ -98,6 +113,7 @@ public class OrderPrintService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error printing order #{OrderId} to {PrinterType}", order.Id, printerType);
+            _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, false, $"Exception: {ex.Message}");
             return false;
         }
     }

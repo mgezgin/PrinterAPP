@@ -8,12 +8,14 @@ public partial class OrderManagementPage : ContentPage
     private readonly OrderHistoryService _orderHistoryService;
     private readonly OrderPrintService _orderPrintService;
     private readonly IEventStreamingService _eventStreamingService;
+    private readonly RequestLogService _requestLogService;
     private readonly ILogger<OrderManagementPage> _logger;
 
     public OrderManagementPage(
         OrderHistoryService orderHistoryService,
         OrderPrintService orderPrintService,
         IEventStreamingService eventStreamingService,
+        RequestLogService requestLogService,
         ILogger<OrderManagementPage> logger)
     {
         InitializeComponent();
@@ -21,10 +23,14 @@ public partial class OrderManagementPage : ContentPage
         _orderHistoryService = orderHistoryService;
         _orderPrintService = orderPrintService;
         _eventStreamingService = eventStreamingService;
+        _requestLogService = requestLogService;
         _logger = logger;
 
         // Bind to order history
         OrdersCollectionView.ItemsSource = _orderHistoryService.Orders;
+
+        // Bind to request logs
+        LogsCollectionView.ItemsSource = _requestLogService.Logs;
 
         // Subscribe to new orders
         _orderHistoryService.OrderAdded += OnOrderAdded;
@@ -210,6 +216,21 @@ public partial class OrderManagementPage : ContentPage
             _orderHistoryService.ClearHistory();
             UpdateStatusLabel();
             await DisplayAlert("Success", "Order history cleared", "OK");
+        }
+    }
+
+    private async void OnClearLogsClicked(object sender, EventArgs e)
+    {
+        var confirm = await DisplayAlert(
+            "Confirm Clear",
+            "Are you sure you want to clear all request logs?",
+            "Yes",
+            "No");
+
+        if (confirm)
+        {
+            _requestLogService.ClearLogs();
+            await DisplayAlert("Success", "Request logs cleared", "OK");
         }
     }
 }

@@ -8,6 +8,7 @@ namespace PrinterAPP.Services;
 public class EventStreamingService : IEventStreamingService
 {
     private readonly IPrinterService _printerService;
+    private readonly RequestLogService _requestLogService;
     private readonly ILogger<EventStreamingService> _logger;
     private HttpClient? _httpClient;
     private CancellationTokenSource? _cancellationTokenSource;
@@ -20,9 +21,13 @@ public class EventStreamingService : IEventStreamingService
 
     public bool IsListening => _isListening;
 
-    public EventStreamingService(IPrinterService printerService, ILogger<EventStreamingService> logger)
+    public EventStreamingService(
+        IPrinterService printerService,
+        RequestLogService requestLogService,
+        ILogger<EventStreamingService> logger)
     {
         _printerService = printerService;
+        _requestLogService = requestLogService;
         _logger = logger;
     }
 
@@ -112,6 +117,7 @@ public class EventStreamingService : IEventStreamingService
             try
             {
                 _logger.LogInformation("Connecting to SSE stream: {Url}", url);
+                _requestLogService.LogSSEConnection(endpoint, "Connecting...");
                 OnConnectionStatusChanged($"Connecting to {endpoint}...");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
@@ -120,6 +126,7 @@ public class EventStreamingService : IEventStreamingService
                 using var response = await _httpClient!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
+                _requestLogService.LogSSEConnection(endpoint, $"✓ Connected ({response.StatusCode})");
                 OnConnectionStatusChanged($"Connected to {endpoint} stream");
                 _logger.LogInformation("Connected to SSE stream: {Endpoint}", endpoint);
 
@@ -200,12 +207,16 @@ public class EventStreamingService : IEventStreamingService
             if (eventType == "connected")
             {
                 _logger.LogInformation("Received connection confirmation from {Source}", sourceEndpoint);
+                _requestLogService.LogSSEEvent("connected", $"Connection confirmed from {sourceEndpoint}");
                 return;
             }
 
             // Parse order event
             if (eventType == "order_created" || eventType == "order_updated" || eventType == "order")
             {
+                // Log raw event
+                _requestLogService.LogSSEEvent(eventType, data.Length > 100 ? data.Substring(0, 100) + "..." : data);
+
                 var order = JsonSerializer.Deserialize<Order>(data, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
@@ -213,6 +224,9 @@ public class EventStreamingService : IEventStreamingService
 
                 if (order != null)
                 {
+                    // Log parsed order
+                    _requestLogService.LogOrderReceived(order.Id, order.TableNumber, order.Total);
+
                     var orderEvent = new OrderEvent
                     {
                         EventType = eventType,
