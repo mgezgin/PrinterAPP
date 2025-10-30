@@ -117,16 +117,38 @@ public class EventStreamingService : IEventStreamingService
             try
             {
                 _logger.LogInformation("Connecting to SSE stream: {Url}", url);
-                _requestLogService.LogSSEConnection(endpoint, "Connecting...");
                 OnConnectionStatusChanged($"Connecting to {endpoint}...");
 
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
 
+                // Capture request details
+                var requestHeaders = new Dictionary<string, string>();
+                foreach (var header in request.Headers)
+                {
+                    requestHeaders[header.Key] = string.Join(", ", header.Value);
+                }
+
+                // Log SSE connection with full request details
+                _requestLogService.LogSSEConnection(endpoint, "Connecting...", url, requestHeaders);
+
                 using var response = await _httpClient!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
-                _requestLogService.LogSSEConnection(endpoint, $"✓ Connected ({response.StatusCode})");
+                // Capture response details
+                var responseHeaders = new Dictionary<string, string>();
+                foreach (var header in response.Headers)
+                {
+                    responseHeaders[header.Key] = string.Join(", ", header.Value);
+                }
+                foreach (var header in response.Content.Headers)
+                {
+                    responseHeaders[header.Key] = string.Join(", ", header.Value);
+                }
+
+                // Log SSE response with full details
+                _requestLogService.LogSSEResponse(endpoint, (int)response.StatusCode, responseHeaders);
+
                 OnConnectionStatusChanged($"Connected to {endpoint} stream");
                 _logger.LogInformation("Connected to SSE stream: {Endpoint}", endpoint);
 
@@ -214,8 +236,8 @@ public class EventStreamingService : IEventStreamingService
             // Parse order event
             if (eventType == "order_created" || eventType == "order_updated" || eventType == "order")
             {
-                // Log raw event
-                _requestLogService.LogSSEEvent(eventType, data.Length > 100 ? data.Substring(0, 100) + "..." : data);
+                // Log raw event with truncated data for display
+                _requestLogService.LogSSEEvent(eventType, data.Length > 100 ? data.Substring(0, 100) + "..." : data, data);
 
                 var order = JsonSerializer.Deserialize<Order>(data, new JsonSerializerOptions
                 {
@@ -224,8 +246,8 @@ public class EventStreamingService : IEventStreamingService
 
                 if (order != null)
                 {
-                    // Log parsed order
-                    _requestLogService.LogOrderReceived(order.Id, order.TableNumber, order.Total);
+                    // Log parsed order with full JSON data
+                    _requestLogService.LogOrderReceived(order.Id, order.TableNumber, order.Total, data);
 
                     var orderEvent = new OrderEvent
                     {

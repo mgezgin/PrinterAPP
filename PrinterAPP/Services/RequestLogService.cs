@@ -19,61 +19,84 @@ public class RequestLogService
         _logs = new ObservableCollection<LogEntry>();
     }
 
-    public void LogSSEConnection(string endpoint, string status)
+    public void LogSSEConnection(string endpoint, string status, string? url = null, Dictionary<string, string>? headers = null)
     {
-        AddLog(LogType.SSE, $"SSE {endpoint}", status, string.Empty);
+        var entry = CreateLogEntry(LogType.SSE, $"SSE {endpoint}", status, string.Empty);
+        entry.RequestUrl = url;
+        entry.RequestHeaders = headers;
+        AddLogEntry(entry);
     }
 
-    public void LogSSEEvent(string eventType, string data)
+    public void LogSSEResponse(string endpoint, int statusCode, Dictionary<string, string>? responseHeaders = null)
     {
-        AddLog(LogType.SSE, $"Event: {eventType}", "Received", data);
+        var entry = CreateLogEntry(LogType.SSE, $"SSE Response {endpoint}", $"Status: {statusCode}", string.Empty);
+        entry.ResponseStatusCode = statusCode;
+        entry.ResponseHeaders = responseHeaders;
+        AddLogEntry(entry);
     }
 
-    public void LogOrderReceived(int orderId, int tableNumber, decimal total)
+    public void LogSSEEvent(string eventType, string data, string? rawData = null)
     {
-        AddLog(LogType.Order, $"Order #{orderId}", $"Table {tableNumber}", $"${total:F2}");
+        var entry = CreateLogEntry(LogType.SSE, $"Event: {eventType}", "Received", data);
+        entry.ResponseBody = rawData ?? data;
+        AddLogEntry(entry);
     }
 
-    public void LogPrintRequest(string printerType, int orderId, string printerName)
+    public void LogOrderReceived(int orderId, int tableNumber, decimal total, string? orderJson = null)
     {
-        AddLog(LogType.PrintRequest, $"{printerType} Print", $"Order #{orderId}", $"Printer: {printerName}");
+        var entry = CreateLogEntry(LogType.Order, $"Order #{orderId}", $"Table {tableNumber}", $"${total:F2}");
+        entry.ResponseBody = orderJson;
+        AddLogEntry(entry);
     }
 
-    public void LogPrintResponse(string printerType, int orderId, bool success, string? error = null)
+    public void LogPrintRequest(string printerType, int orderId, string printerName, string? printContent = null)
+    {
+        var entry = CreateLogEntry(LogType.PrintRequest, $"{printerType} Print", $"Order #{orderId}", $"Printer: {printerName}");
+        entry.RequestBody = printContent;
+        AddLogEntry(entry);
+    }
+
+    public void LogPrintResponse(string printerType, int orderId, bool success, string? error = null, string? details = null)
     {
         var status = success ? "✓ Success" : "✗ Failed";
-        var details = error ?? "Printed successfully";
-        AddLog(success ? LogType.PrintSuccess : LogType.PrintError,
+        var message = error ?? "Printed successfully";
+        var entry = CreateLogEntry(success ? LogType.PrintSuccess : LogType.PrintError,
                $"{printerType} Result",
                $"Order #{orderId} - {status}",
-               details);
+               message);
+        entry.ResponseBody = details;
+        AddLogEntry(entry);
     }
 
     public void LogError(string operation, string message, string? details = null)
     {
-        AddLog(LogType.Error, operation, $"Error: {message}", details ?? string.Empty);
+        var entry = CreateLogEntry(LogType.Error, operation, $"Error: {message}", details ?? string.Empty);
+        AddLogEntry(entry);
     }
 
-    private void AddLog(LogType type, string operation, string message, string details)
+    private LogEntry CreateLogEntry(LogType type, string operation, string message, string details)
+    {
+        return new LogEntry
+        {
+            Timestamp = DateTime.UtcNow,
+            Type = type,
+            Operation = operation,
+            Message = message,
+            Details = details
+        };
+    }
+
+    private void AddLogEntry(LogEntry entry)
     {
         try
         {
             lock (_lockObject)
             {
-                var entry = new LogEntry
-                {
-                    Timestamp = DateTime.UtcNow,
-                    Type = type,
-                    Operation = operation,
-                    Message = message,
-                    Details = details
-                };
-
                 // Insert at the beginning (most recent first)
                 _logs.Insert(0, entry);
 
                 // Log to console/debug
-                _logger.LogInformation("[{Type}] {Operation}: {Message}", type, operation, message);
+                _logger.LogInformation("[{Type}] {Operation}: {Message}", entry.Type, entry.Operation, entry.Message);
 
                 // Notify subscribers
                 LogAdded?.Invoke(this, entry);
@@ -119,6 +142,17 @@ public class LogEntry
     public string Message { get; set; } = string.Empty;
     public string Details { get; set; } = string.Empty;
 
+    // HTTP Request Details
+    public string? RequestUrl { get; set; }
+    public string? RequestMethod { get; set; }
+    public Dictionary<string, string>? RequestHeaders { get; set; }
+    public string? RequestBody { get; set; }
+
+    // HTTP Response Details
+    public int? ResponseStatusCode { get; set; }
+    public Dictionary<string, string>? ResponseHeaders { get; set; }
+    public string? ResponseBody { get; set; }
+
     public string TimestampText => Timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
 
     public string TypeIcon => Type switch
@@ -144,4 +178,15 @@ public class LogEntry
     };
 
     public string DisplayText => $"[{TimestampText}] {TypeIcon} {Operation}: {Message}";
+
+    public bool HasRequestDetails => !string.IsNullOrEmpty(RequestUrl) || RequestHeaders?.Any() == true || !string.IsNullOrEmpty(RequestBody);
+    public bool HasResponseDetails => ResponseStatusCode.HasValue || ResponseHeaders?.Any() == true || !string.IsNullOrEmpty(ResponseBody);
+
+    public string RequestHeadersText => RequestHeaders != null
+        ? string.Join("\n", RequestHeaders.Select(h => $"{h.Key}: {h.Value}"))
+        : string.Empty;
+
+    public string ResponseHeadersText => ResponseHeaders != null
+        ? string.Join("\n", ResponseHeaders.Select(h => $"{h.Key}: {h.Value}"))
+        : string.Empty;
 }

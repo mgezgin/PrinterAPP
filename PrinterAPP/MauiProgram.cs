@@ -30,6 +30,7 @@ namespace PrinterAPP
             // Register pages
             builder.Services.AddSingleton<MainPage>();
             builder.Services.AddSingleton<OrderManagementPage>();
+            builder.Services.AddSingleton<LogsPage>();
 
             return builder.Build();
         }

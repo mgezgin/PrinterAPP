@@ -77,12 +77,12 @@ public class OrderPrintService
                 return false;
             }
 
-            // Log print request
-            _requestLogService.LogPrintRequest(printerType.ToString(), order.Id, printerName);
-
             string content = printerType == PrinterType.Kitchen
                 ? FormatKitchenReceipt(order, config, paperWidth)
                 : FormatCashierReceipt(order, config, paperWidth);
+
+            // Log print request with full content
+            _requestLogService.LogPrintRequest(printerType.ToString(), order.Id, printerName, content);
 
             bool success = true;
             for (int i = 0; i < copies; i++)

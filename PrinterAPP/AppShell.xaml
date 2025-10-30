@@ -18,6 +18,12 @@
             Icon="dotnet_bot.png"
             ContentTemplate="{DataTemplate local:OrderManagementPage}"
             Route="OrderManagementPage" />
+
+        <ShellContent
+            Title="Logs"
+            Icon="dotnet_bot.png"
+            ContentTemplate="{DataTemplate local:LogsPage}"
+            Route="LogsPage" />
     </TabBar>
 
 </Shell>

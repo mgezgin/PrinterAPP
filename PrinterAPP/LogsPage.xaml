@@ -1,0 +1,212 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:PrinterAPP"
+             xmlns:services="clr-namespace:PrinterAPP.Services"
+             xmlns:converters="clr-namespace:PrinterAPP.Converters"
+             x:Class="PrinterAPP.LogsPage"
+             Title="Request/Response Logs">
+    <Grid RowDefinitions="Auto,*" Padding="20">
+        <!-- Header with Clear Button -->
+        <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+            <Label Grid.Column="0"
+                   Text="📝 Request/Response Logs"
+                   FontSize="24"
+                   FontAttributes="Bold"/>
+            <Button Grid.Column="1"
+                    Text="Clear Logs"
+                    Clicked="OnClearLogsClicked"
+                    BackgroundColor="#DC3545"
+                    TextColor="White"
+                    WidthRequest="120"/>
+        </Grid>
+
+        <!-- Logs List -->
+        <ScrollView Grid.Row="1">
+            <CollectionView x:Name="LogsCollectionView"
+                            ItemsSource="{Binding Logs}"
+                            SelectionMode="None">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="services:LogEntry">
+                        <Frame Margin="0,0,0,10"
+                               Padding="15"
+                               BorderColor="{Binding TypeColor}"
+                               BackgroundColor="#F8F9FA"
+                               CornerRadius="8"
+                               HasShadow="True">
+                            <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+                                <!-- Log Header -->
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                                    <Label Grid.Column="0"
+                                           Text="{Binding TypeIcon}"
+                                           FontSize="20"
+                                           VerticalOptions="Center"/>
+                                    <StackLayout Grid.Column="1" Margin="10,0,0,0" VerticalOptions="Center">
+                                        <Label Text="{Binding Operation}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="{Binding TypeColor}"/>
+                                        <Label Text="{Binding Message}"
+                                               FontSize="14"
+                                               TextColor="#666"/>
+                                    </StackLayout>
+                                    <Label Grid.Column="2"
+                                           Text="{Binding TimestampText}"
+                                           FontSize="12"
+                                           TextColor="#999"
+                                           VerticalOptions="Center"/>
+                                </Grid>
+
+                                <!-- Details -->
+                                <Label Grid.Row="1"
+                                       Text="{Binding Details}"
+                                       FontSize="12"
+                                       TextColor="#333"
+                                       Margin="0,5,0,0"
+                                       IsVisible="{Binding Details, Converter={StaticResource StringNotEmptyConverter}}"/>
+
+                                <!-- Request Details Section -->
+                                <Frame Grid.Row="2"
+                                       Padding="10"
+                                       Margin="0,10,0,0"
+                                       BorderColor="#007BFF"
+                                       BackgroundColor="#E7F3FF"
+                                       CornerRadius="5"
+                                       IsVisible="{Binding HasRequestDetails}">
+                                    <StackLayout Spacing="5">
+                                        <Label Text="📤 REQUEST"
+                                               FontSize="14"
+                                               FontAttributes="Bold"
+                                               TextColor="#007BFF"/>
+
+                                        <!-- Request URL -->
+                                        <Grid ColumnDefinitions="Auto,*"
+                                              IsVisible="{Binding RequestUrl, Converter={StaticResource StringNotEmptyConverter}}">
+                                            <Label Grid.Column="0"
+                                                   Text="URL:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"
+                                                   WidthRequest="80"/>
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding RequestUrl}"
+                                                   FontSize="12"
+                                                   LineBreakMode="CharacterWrap"/>
+                                        </Grid>
+
+                                        <!-- Request Method -->
+                                        <Grid ColumnDefinitions="Auto,*"
+                                              IsVisible="{Binding RequestMethod, Converter={StaticResource StringNotEmptyConverter}}">
+                                            <Label Grid.Column="0"
+                                                   Text="Method:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"
+                                                   WidthRequest="80"/>
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding RequestMethod}"
+                                                   FontSize="12"/>
+                                        </Grid>
+
+                                        <!-- Request Headers -->
+                                        <StackLayout IsVisible="{Binding RequestHeadersText, Converter={StaticResource StringNotEmptyConverter}}">
+                                            <Label Text="Headers:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"/>
+                                            <Frame Padding="5"
+                                                   BackgroundColor="White"
+                                                   CornerRadius="3"
+                                                   BorderColor="#007BFF">
+                                                <Label Text="{Binding RequestHeadersText}"
+                                                       FontSize="11"
+                                                       FontFamily="Courier New"
+                                                       LineBreakMode="CharacterWrap"/>
+                                            </Frame>
+                                        </StackLayout>
+
+                                        <!-- Request Body -->
+                                        <StackLayout IsVisible="{Binding RequestBody, Converter={StaticResource StringNotEmptyConverter}}">
+                                            <Label Text="Body:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"/>
+                                            <Frame Padding="5"
+                                                   BackgroundColor="White"
+                                                   CornerRadius="3"
+                                                   BorderColor="#007BFF">
+                                                <Label Text="{Binding RequestBody}"
+                                                       FontSize="11"
+                                                       FontFamily="Courier New"
+                                                       LineBreakMode="CharacterWrap"
+                                                       MaxLines="10"/>
+                                            </Frame>
+                                        </StackLayout>
+                                    </StackLayout>
+                                </Frame>
+
+                                <!-- Response Details Section -->
+                                <Frame Grid.Row="3"
+                                       Padding="10"
+                                       Margin="0,10,0,0"
+                                       BorderColor="#28A745"
+                                       BackgroundColor="#E7F9EC"
+                                       CornerRadius="5"
+                                       IsVisible="{Binding HasResponseDetails}">
+                                    <StackLayout Spacing="5">
+                                        <Label Text="📥 RESPONSE"
+                                               FontSize="14"
+                                               FontAttributes="Bold"
+                                               TextColor="#28A745"/>
+
+                                        <!-- Response Status Code -->
+                                        <Grid ColumnDefinitions="Auto,*"
+                                              IsVisible="{Binding ResponseStatusCode}">
+                                            <Label Grid.Column="0"
+                                                   Text="Status:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"
+                                                   WidthRequest="80"/>
+                                            <Label Grid.Column="1"
+                                                   Text="{Binding ResponseStatusCode}"
+                                                   FontSize="12"/>
+                                        </Grid>
+
+                                        <!-- Response Headers -->
+                                        <StackLayout IsVisible="{Binding ResponseHeadersText, Converter={StaticResource StringNotEmptyConverter}}">
+                                            <Label Text="Headers:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"/>
+                                            <Frame Padding="5"
+                                                   BackgroundColor="White"
+                                                   CornerRadius="3"
+                                                   BorderColor="#28A745">
+                                                <Label Text="{Binding ResponseHeadersText}"
+                                                       FontSize="11"
+                                                       FontFamily="Courier New"
+                                                       LineBreakMode="CharacterWrap"/>
+                                            </Frame>
+                                        </StackLayout>
+
+                                        <!-- Response Body -->
+                                        <StackLayout IsVisible="{Binding ResponseBody, Converter={StaticResource StringNotEmptyConverter}}">
+                                            <Label Text="Body:"
+                                                   FontSize="12"
+                                                   FontAttributes="Bold"/>
+                                            <Frame Padding="5"
+                                                   BackgroundColor="White"
+                                                   CornerRadius="3"
+                                                   BorderColor="#28A745">
+                                                <Label Text="{Binding ResponseBody}"
+                                                       FontSize="11"
+                                                       FontFamily="Courier New"
+                                                       LineBreakMode="CharacterWrap"
+                                                       MaxLines="10"/>
+                                            </Frame>
+                                        </StackLayout>
+                                    </StackLayout>
+                                </Frame>
+                            </Grid>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </ScrollView>
+    </Grid>
+</ContentPage>
