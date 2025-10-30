@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Logging;
 using PrinterAPP.Models;
 
 namespace PrinterAPP.Services;

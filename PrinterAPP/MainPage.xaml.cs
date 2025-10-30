@@ -1,5 +1,6 @@
 ﻿// MainPage.xaml.cs
 using Microsoft.Maui.Controls;
+using Microsoft.Extensions.Logging;
 using PrinterAPP.Models;
 using PrinterAPP.Services;
 
