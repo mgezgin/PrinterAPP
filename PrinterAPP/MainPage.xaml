@@ -44,8 +44,8 @@
                     <Label Text="API Base URL" FontSize="14" TextColor="Gray"/>
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Entry x:Name="ApiUrlEntry"
-                               Placeholder="http://localhost:5221"
-                               Text="http://localhost:5221"/>
+                               Placeholder="https://localhost:44386"
+                               Text="https://localhost:44386"/>
                         <Button Text="Test"
                                 Grid.Column="1"
                                 BackgroundColor="#2196F3"
@@ -56,17 +56,17 @@
                 </VerticalStackLayout>
             </Frame>
 
-            <!-- Printer Settings -->
+            <!-- Kitchen Printer Settings -->
             <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
                 <VerticalStackLayout Spacing="10">
-                    <Label Text="Printer Settings" 
-                           FontSize="18" 
+                    <Label Text="🍳 Kitchen Printer Settings"
+                           FontSize="18"
                            FontAttributes="Bold"/>
 
-                    <Label Text="Select Printer" FontSize="14" TextColor="Gray"/>
+                    <Label Text="Select Kitchen Printer" FontSize="14" TextColor="Gray"/>
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-                        <Picker x:Name="PrinterPicker"
-                                Title="Choose a printer"/>
+                        <Picker x:Name="KitchenPrinterPicker"
+                                Title="Choose kitchen printer"/>
                         <Button Text="Refresh"
                                 Grid.Column="1"
                                 BackgroundColor="#4CAF50"
@@ -78,7 +78,7 @@
                     <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
                         <VerticalStackLayout>
                             <Label Text="Paper Width" FontSize="14" TextColor="Gray"/>
-                            <Picker x:Name="PaperWidthPicker">
+                            <Picker x:Name="KitchenPaperWidthPicker">
                                 <Picker.Items>
                                     <x:String>80mm</x:String>
                                     <x:String>58mm</x:String>
@@ -88,17 +88,59 @@
 
                         <VerticalStackLayout Grid.Column="1">
                             <Label Text="Print Copies" FontSize="14" TextColor="Gray"/>
-                            <Entry x:Name="PrintCopiesEntry"
+                            <Entry x:Name="KitchenPrintCopiesEntry"
                                    Text="1"
                                    Keyboard="Numeric"/>
                         </VerticalStackLayout>
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto,*">
-                        <Switch x:Name="AutoPrintSwitch"
+                        <Switch x:Name="KitchenAutoPrintSwitch"
                                 IsToggled="True"
                                 VerticalOptions="Center"/>
-                        <Label Text="Auto-print new orders"
+                        <Label Text="Auto-print kitchen orders"
+                               Grid.Column="1"
+                               VerticalOptions="Center"
+                               Margin="10,0,0,0"/>
+                    </Grid>
+                </VerticalStackLayout>
+            </Frame>
+
+            <!-- Cashier Printer Settings -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="💰 Cashier Printer Settings"
+                           FontSize="18"
+                           FontAttributes="Bold"/>
+
+                    <Label Text="Select Cashier Printer" FontSize="14" TextColor="Gray"/>
+                    <Picker x:Name="CashierPrinterPicker"
+                            Title="Choose cashier printer"/>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout>
+                            <Label Text="Paper Width" FontSize="14" TextColor="Gray"/>
+                            <Picker x:Name="CashierPaperWidthPicker">
+                                <Picker.Items>
+                                    <x:String>80mm</x:String>
+                                    <x:String>58mm</x:String>
+                                </Picker.Items>
+                            </Picker>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Grid.Column="1">
+                            <Label Text="Print Copies" FontSize="14" TextColor="Gray"/>
+                            <Entry x:Name="CashierPrintCopiesEntry"
+                                   Text="1"
+                                   Keyboard="Numeric"/>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Switch x:Name="CashierAutoPrintSwitch"
+                                IsToggled="True"
+                                VerticalOptions="Center"/>
+                        <Label Text="Auto-print cashier receipts"
                                Grid.Column="1"
                                VerticalOptions="Center"
                                Margin="10,0,0,0"/>
