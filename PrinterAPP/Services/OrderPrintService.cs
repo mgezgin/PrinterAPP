@@ -73,7 +73,8 @@ public class OrderPrintService
             if (string.IsNullOrWhiteSpace(printerName))
             {
                 _logger.LogWarning("No printer configured for {PrinterType}", printerType);
-                _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, false, "No printer configured");
+                int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var num) ? num : 0;
+                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "No printer configured");
                 return false;
             }
 
@@ -81,8 +82,11 @@ public class OrderPrintService
                 ? FormatKitchenReceipt(order, config, paperWidth)
                 : FormatCashierReceipt(order, config, paperWidth);
 
+            // Extract order number for logging (parse the numeric part)
+            int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var num) ? num : 0;
+
             // Log print request with full content
-            _requestLogService.LogPrintRequest(printerType.ToString(), order.Id, printerName, content);
+            _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
 
             bool success = true;
             for (int i = 0; i < copies; i++)
@@ -99,21 +103,22 @@ public class OrderPrintService
             // Log print response
             if (success)
             {
-                _logger.LogInformation("Successfully printed order #{OrderId} to {PrinterType} printer ({Copies} copies)",
-                    order.Id, printerType, copies);
-                _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
+                _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
+                    order.OrderNumber, printerType, copies);
+                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
             }
             else
             {
-                _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, false, "Print operation failed");
+                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
             }
 
             return success;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error printing order #{OrderId} to {PrinterType}", order.Id, printerType);
-            _requestLogService.LogPrintResponse(printerType.ToString(), order.Id, false, $"Exception: {ex.Message}");
+            _logger.LogError(ex, "Error printing order #{OrderNumber} to {PrinterType}", order.OrderNumber, printerType);
+            int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var num) ? num : 0;
+            _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, $"Exception: {ex.Message}");
             return false;
         }
     }
@@ -139,12 +144,13 @@ public class OrderPrintService
         // Order info - EXTRA DARK for maximum visibility
         sb.Append(ESC_ALIGN_LEFT);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Order #: {order.Id}");
+        sb.AppendLine($"Order #: {order.OrderNumber}");
+        sb.AppendLine($"Type: {order.Type}");
         sb.AppendLine($"Table: {order.TableNumber}");
-        sb.AppendLine($"Time: {order.CreatedAt:HH:mm:ss}");
-        if (!string.IsNullOrWhiteSpace(order.WaiterName))
+        sb.AppendLine($"Time: {order.OrderDate:HH:mm:ss}");
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
-            sb.AppendLine($"Waiter: {order.WaiterName}");
+            sb.AppendLine($"Customer: {order.CustomerName}");
         }
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
@@ -157,16 +163,25 @@ public class OrderPrintService
 
         foreach (var item in order.Items)
         {
-            // Item name and quantity - EXTRA DARK
+            // Item name and quantity - EXTRA DARK (NO PRICES for kitchen)
             sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine($"{item.Quantity}x {item.Name}");
+            sb.AppendLine($"{item.Quantity}x {item.ProductName}");
             sb.Append(EXTRA_DARK_OFF);
 
-            if (!string.IsNullOrWhiteSpace(item.Notes))
+            // Show variation if available
+            if (!string.IsNullOrWhiteSpace(item.VariationName))
+            {
+                sb.Append(EXTRA_DARK_ON);
+                sb.AppendLine($"   Variation: {item.VariationName}");
+                sb.Append(EXTRA_DARK_OFF);
+            }
+
+            // Show special instructions
+            if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
             {
                 // Item notes - EXTRA DARK for visibility
                 sb.Append(EXTRA_DARK_ON);
-                sb.AppendLine($"   NOTE: {item.Notes}");
+                sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
                 sb.Append(EXTRA_DARK_OFF);
             }
             sb.AppendLine();
@@ -179,6 +194,17 @@ public class OrderPrintService
             sb.Append(EXTRA_DARK_ON);
             sb.AppendLine("ORDER NOTES:");
             sb.AppendLine(order.Notes);
+            sb.Append(EXTRA_DARK_OFF);
+            sb.AppendLine();
+        }
+
+        // Delivery address for delivery orders
+        if (order.Type == "Delivery" && !string.IsNullOrWhiteSpace(order.DeliveryAddress))
+        {
+            sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine("DELIVERY ADDRESS:");
+            sb.AppendLine(order.DeliveryAddress);
             sb.Append(EXTRA_DARK_OFF);
             sb.AppendLine();
         }
@@ -219,12 +245,17 @@ public class OrderPrintService
         // Order info - EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Order #: {order.Id}");
+        sb.AppendLine($"Order #: {order.OrderNumber}");
+        sb.AppendLine($"Type: {order.Type}");
         sb.AppendLine($"Table: {order.TableNumber}");
-        sb.AppendLine($"Date: {order.CreatedAt:yyyy-MM-dd HH:mm}");
-        if (!string.IsNullOrWhiteSpace(order.WaiterName))
+        sb.AppendLine($"Date: {order.OrderDate:yyyy-MM-dd HH:mm}");
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
-            sb.AppendLine($"Server: {order.WaiterName}");
+            sb.AppendLine($"Customer: {order.CustomerName}");
+        }
+        if (!string.IsNullOrWhiteSpace(order.CustomerPhone))
+        {
+            sb.AppendLine($"Phone: {order.CustomerPhone}");
         }
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
@@ -232,8 +263,14 @@ public class OrderPrintService
         // Items with prices - EXTRA DARK
         foreach (var item in order.Items)
         {
-            var itemLine = $"{item.Quantity}x {item.Name}";
-            var price = $"${item.Price * item.Quantity:F2}";
+            var itemName = item.ProductName;
+            if (!string.IsNullOrWhiteSpace(item.VariationName))
+            {
+                itemName += $" ({item.VariationName})";
+            }
+
+            var itemLine = $"{item.Quantity}x {itemName}";
+            var price = $"${item.ItemTotal:F2}";
             var spacing = paperWidth == 80 ? 48 : 32;
             var dots = spacing - itemLine.Length - price.Length;
 
@@ -243,12 +280,39 @@ public class OrderPrintService
             sb.AppendLine(price);
             sb.Append(EXTRA_DARK_OFF);
 
-            if (!string.IsNullOrWhiteSpace(item.Notes))
+            if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
             {
-                sb.AppendLine($"  * {item.Notes}");
+                sb.AppendLine($"  * {item.SpecialInstructions}");
             }
         }
 
+        sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
+
+        // Subtotal, Tax, Discount, Delivery Fee, Tip - EXTRA DARK
+        sb.Append(EXTRA_DARK_ON);
+        sb.AppendLine($"Subtotal: ${order.SubTotal:F2}");
+
+        if (order.Tax > 0)
+        {
+            sb.AppendLine($"Tax: ${order.Tax:F2}");
+        }
+
+        if (order.Discount > 0)
+        {
+            sb.AppendLine($"Discount ({order.DiscountPercentage}%): -${order.Discount:F2}");
+        }
+
+        if (order.DeliveryFee > 0)
+        {
+            sb.AppendLine($"Delivery Fee: ${order.DeliveryFee:F2}");
+        }
+
+        if (order.Tip > 0)
+        {
+            sb.AppendLine($"Tip: ${order.Tip:F2}");
+        }
+
+        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
         // Total - EXTRA DARK, Bold and larger for maximum visibility
@@ -258,6 +322,30 @@ public class OrderPrintService
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
+
+        // Payment information
+        if (order.Payments != null && order.Payments.Any())
+        {
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine("PAYMENT:");
+            foreach (var payment in order.Payments)
+            {
+                sb.AppendLine($"{payment.PaymentMethod}: ${payment.Amount:F2}");
+            }
+            sb.Append(EXTRA_DARK_OFF);
+            sb.AppendLine();
+        }
+
+        // Delivery address for delivery orders
+        if (order.Type == "Delivery" && !string.IsNullOrWhiteSpace(order.DeliveryAddress))
+        {
+            sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine("DELIVERY TO:");
+            sb.AppendLine(order.DeliveryAddress);
+            sb.Append(EXTRA_DARK_OFF);
+            sb.AppendLine();
+        }
 
         // Footer
         sb.AppendLine(new string('=', paperWidth == 80 ? 48 : 32));

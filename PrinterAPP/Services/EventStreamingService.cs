@@ -54,12 +54,11 @@ public class EventStreamingService : IEventStreamingService
 
         _isListening = true;
 
-        // Start listening to both kitchen and cashier endpoints
+        // Start listening to kitchen endpoint only (both printers will receive from this endpoint)
         _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "kitchen", _cancellationTokenSource.Token);
-        _cashierListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "service", _cancellationTokenSource.Token); // Using 'service' for cashier
 
-        OnConnectionStatusChanged("Connected to SSE streams");
-        _logger.LogInformation("Started listening to SSE streams");
+        OnConnectionStatusChanged("Connected to Kitchen SSE stream");
+        _logger.LogInformation("Started listening to Kitchen SSE stream");
     }
 
     public async Task StopListeningAsync()
@@ -79,10 +78,6 @@ public class EventStreamingService : IEventStreamingService
             if (_kitchenListeningTask != null)
             {
                 await _kitchenListeningTask;
-            }
-            if (_cashierListeningTask != null)
-            {
-                await _cashierListeningTask;
             }
         }
         catch (OperationCanceledException)
@@ -229,45 +224,80 @@ public class EventStreamingService : IEventStreamingService
             if (eventType == "connected")
             {
                 _logger.LogInformation("Received connection confirmation from {Source}", sourceEndpoint);
-                _requestLogService.LogSSEEvent("connected", $"Connection confirmed from {sourceEndpoint}");
+                _requestLogService.LogSSEEvent("connected", $"Connection confirmed from {sourceEndpoint}", data, "Kitchen");
                 return;
             }
 
-            // Parse order event
-            if (eventType == "order_created" || eventType == "order_updated" || eventType == "order")
+            // Parse order event - handle both old format and new format
+            if (eventType == "order-created" || eventType == "order-updated" || eventType == "order_created" ||
+                eventType == "order_updated" || eventType == "order" || eventType == "message")
             {
                 // Log raw event with truncated data for display
-                _requestLogService.LogSSEEvent(eventType, data.Length > 100 ? data.Substring(0, 100) + "..." : data, data);
+                var truncatedData = data.Length > 100 ? data.Substring(0, 100) + "..." : data;
 
-                var order = JsonSerializer.Deserialize<Order>(data, new JsonSerializerOptions
+                try
                 {
-                    PropertyNameCaseInsensitive = true
-                });
-
-                if (order != null)
-                {
-                    // Log parsed order with full JSON data
-                    _requestLogService.LogOrderReceived(order.Id, order.TableNumber, order.Total, data);
-
-                    var orderEvent = new OrderEvent
+                    // Try to parse as OrderEvent wrapper first (new format)
+                    var orderEvent = JsonSerializer.Deserialize<OrderEvent>(data, new JsonSerializerOptions
                     {
-                        EventType = eventType,
-                        Order = order,
-                        Timestamp = DateTime.UtcNow
-                    };
+                        PropertyNameCaseInsensitive = true
+                    });
 
-                    // Notify subscribers
-                    OnOrderReceived(orderEvent);
+                    if (orderEvent?.Order != null)
+                    {
+                        // Log parsed order with full JSON data
+                        _requestLogService.LogOrderReceived(
+                            int.TryParse(orderEvent.Order.OrderNumber.Split('/').Last(), out var orderNum) ? orderNum : 0,
+                            orderEvent.Order.TableNumber,
+                            orderEvent.Order.Total,
+                            data,
+                            "Kitchen");
+
+                        // Notify subscribers
+                        OnOrderReceived(orderEvent);
+                        return;
+                    }
+                }
+                catch
+                {
+                    // If that fails, try to parse as Order directly (old format fallback)
+                    var order = JsonSerializer.Deserialize<Order>(data, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
+
+                    if (order != null)
+                    {
+                        // Log parsed order with full JSON data
+                        _requestLogService.LogOrderReceived(
+                            int.TryParse(order.OrderNumber.Split('/').Last(), out var orderNum) ? orderNum : 0,
+                            order.TableNumber,
+                            order.Total,
+                            data,
+                            "Kitchen");
+
+                        var orderEvent = new OrderEvent
+                        {
+                            EventType = eventType,
+                            Order = order,
+                            Timestamp = DateTime.UtcNow
+                        };
+
+                        // Notify subscribers
+                        OnOrderReceived(orderEvent);
+                    }
                 }
             }
         }
         catch (JsonException ex)
         {
             _logger.LogError(ex, "Failed to parse order data: {Data}", data);
+            _requestLogService.LogError("JSON Parse Error", $"Failed to parse event data: {ex.Message}", data);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing SSE event");
+            _requestLogService.LogError("Event Processing Error", ex.Message, ex.StackTrace);
         }
     }
 

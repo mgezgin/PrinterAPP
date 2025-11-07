@@ -254,7 +254,7 @@ public partial class MainPage : ContentPage
                 // Update print status in history
                 _orderHistoryService.UpdatePrintStatus(orderEvent.Order.Id, kitchenSuccess, cashierSuccess);
 
-                StatusLabel.Text = $"Order #{orderEvent.Order.Id} printed";
+                StatusLabel.Text = $"Order #{orderEvent.Order.OrderNumber} printed";
                 StatusLabel.TextColor = Colors.Green;
             }
             catch (Exception ex)
