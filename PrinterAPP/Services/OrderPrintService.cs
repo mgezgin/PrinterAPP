@@ -40,6 +40,9 @@ public class OrderPrintService
 
     public async Task<bool> PrintOrderAsync(Order order, PrinterType printerType, CancellationToken cancellationToken = default)
     {
+        // Extract order number for logging (parse the numeric part)
+        int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var orderNumParsed) ? orderNumParsed : 0;
+
         try
         {
             var config = await _printerService.LoadConfigurationAsync();
@@ -73,7 +76,6 @@ public class OrderPrintService
             if (string.IsNullOrWhiteSpace(printerName))
             {
                 _logger.LogWarning("No printer configured for {PrinterType}", printerType);
-                int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var num) ? num : 0;
                 _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "No printer configured");
                 return false;
             }
@@ -81,9 +83,6 @@ public class OrderPrintService
             string content = printerType == PrinterType.Kitchen
                 ? FormatKitchenReceipt(order, config, paperWidth)
                 : FormatCashierReceipt(order, config, paperWidth);
-
-            // Extract order number for logging (parse the numeric part)
-            int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var num) ? num : 0;
 
             // Log print request with full content
             _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
@@ -117,7 +116,6 @@ public class OrderPrintService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error printing order #{OrderNumber} to {PrinterType}", order.OrderNumber, printerType);
-            int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var num) ? num : 0;
             _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, $"Exception: {ex.Message}");
             return false;
         }
