@@ -159,30 +159,45 @@ public class OrderPrintService
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
-        foreach (var item in order.Items)
+        // Log item count for debugging
+        _logger.LogInformation("Printing {ItemCount} items for order {OrderNumber}", order.Items?.Count ?? 0, order.OrderNumber);
+
+        if (order.Items != null && order.Items.Any())
         {
-            // Item name and quantity - EXTRA DARK (NO PRICES for kitchen)
-            sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine($"{item.Quantity}x {item.ProductName}");
-            sb.Append(EXTRA_DARK_OFF);
-
-            // Show variation if available
-            if (!string.IsNullOrWhiteSpace(item.VariationName))
+            foreach (var item in order.Items)
             {
-                sb.Append(EXTRA_DARK_ON);
-                sb.AppendLine($"   Variation: {item.VariationName}");
-                sb.Append(EXTRA_DARK_OFF);
-            }
+                // Log each item for debugging
+                _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-            // Show special instructions
-            if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
-            {
-                // Item notes - EXTRA DARK for visibility
+                // Item name and quantity - EXTRA DARK (NO PRICES for kitchen)
                 sb.Append(EXTRA_DARK_ON);
-                sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
+                sb.AppendLine($"{item.Quantity}x {item.ProductName}");
                 sb.Append(EXTRA_DARK_OFF);
+
+                // Show variation if available
+                if (!string.IsNullOrWhiteSpace(item.VariationName))
+                {
+                    sb.Append(EXTRA_DARK_ON);
+                    sb.AppendLine($"   Variation: {item.VariationName}");
+                    sb.Append(EXTRA_DARK_OFF);
+                }
+
+                // Show special instructions
+                if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                {
+                    // Item notes - EXTRA DARK for visibility
+                    sb.Append(EXTRA_DARK_ON);
+                    sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
+                    sb.Append(EXTRA_DARK_OFF);
+                }
+                sb.AppendLine();
             }
-            sb.AppendLine();
+        }
+        else
+        {
+            // No items found - log warning
+            _logger.LogWarning("No items found in order {OrderNumber}", order.OrderNumber);
+            sb.AppendLine("(No items in order)");
         }
 
         // Order notes - EXTRA DARK for important information
@@ -259,29 +274,37 @@ public class OrderPrintService
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
         // Items with prices - EXTRA DARK
-        foreach (var item in order.Items)
+        if (order.Items != null && order.Items.Any())
         {
-            var itemName = item.ProductName;
-            if (!string.IsNullOrWhiteSpace(item.VariationName))
+            foreach (var item in order.Items)
             {
-                itemName += $" ({item.VariationName})";
+                var itemName = item.ProductName;
+                if (!string.IsNullOrWhiteSpace(item.VariationName))
+                {
+                    itemName += $" ({item.VariationName})";
+                }
+
+                var itemLine = $"{item.Quantity}x {itemName}";
+                var price = $"${item.ItemTotal:F2}";
+                var spacing = paperWidth == 80 ? 48 : 32;
+                var dots = spacing - itemLine.Length - price.Length;
+
+                sb.Append(EXTRA_DARK_ON);
+                sb.Append(itemLine);
+                sb.Append(new string('.', Math.Max(1, dots)));
+                sb.AppendLine(price);
+                sb.Append(EXTRA_DARK_OFF);
+
+                if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
+                {
+                    sb.AppendLine($"  * {item.SpecialInstructions}");
+                }
             }
-
-            var itemLine = $"{item.Quantity}x {itemName}";
-            var price = $"${item.ItemTotal:F2}";
-            var spacing = paperWidth == 80 ? 48 : 32;
-            var dots = spacing - itemLine.Length - price.Length;
-
-            sb.Append(EXTRA_DARK_ON);
-            sb.Append(itemLine);
-            sb.Append(new string('.', Math.Max(1, dots)));
-            sb.AppendLine(price);
-            sb.Append(EXTRA_DARK_OFF);
-
-            if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
-            {
-                sb.AppendLine($"  * {item.SpecialInstructions}");
-            }
+        }
+        else
+        {
+            _logger.LogWarning("No items found in cashier receipt for order {OrderNumber}", order.OrderNumber);
+            sb.AppendLine("(No items in order)");
         }
 
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));

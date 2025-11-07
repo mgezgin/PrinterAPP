@@ -245,6 +245,24 @@ public class EventStreamingService : IEventStreamingService
 
                     if (orderEvent?.Order != null)
                     {
+                        // Log order details for debugging
+                        _logger.LogInformation("Received order {OrderNumber} with {ItemCount} items",
+                            orderEvent.Order.OrderNumber,
+                            orderEvent.Order.Items?.Count ?? 0);
+
+                        if (orderEvent.Order.Items != null && orderEvent.Order.Items.Any())
+                        {
+                            foreach (var item in orderEvent.Order.Items)
+                            {
+                                _logger.LogInformation("  - Item: {Quantity}x {ProductName}",
+                                    item.Quantity, item.ProductName);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Order {OrderNumber} has no items!", orderEvent.Order.OrderNumber);
+                        }
+
                         // Log parsed order with full JSON data
                         _requestLogService.LogOrderReceived(
                             int.TryParse(orderEvent.Order.OrderNumber.Split('/').Last(), out var orderNum) ? orderNum : 0,
