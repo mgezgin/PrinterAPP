@@ -40,6 +40,11 @@ public class EventStreamingService : IEventStreamingService
         }
 
         var config = await _printerService.LoadConfigurationAsync();
+
+        // Debug logging
+        _logger.LogInformation("SERVICE: Loaded API Base URL from config: {ApiUrl}", config.ApiBaseUrl);
+        System.Diagnostics.Debug.WriteLine($"DEBUG SERVICE: API Base URL = {config.ApiBaseUrl}");
+
         if (string.IsNullOrWhiteSpace(config.ApiBaseUrl))
         {
             OnConnectionStatusChanged("Error: API Base URL not configured");
@@ -58,8 +63,8 @@ public class EventStreamingService : IEventStreamingService
         _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "kitchen", _cancellationTokenSource.Token);
         _cashierListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "service", _cancellationTokenSource.Token); // Using 'service' for cashier
 
-        OnConnectionStatusChanged("Connected to SSE streams");
-        _logger.LogInformation("Started listening to SSE streams");
+        OnConnectionStatusChanged($"Connecting to: {config.ApiBaseUrl}");
+        _logger.LogInformation("Started listening to SSE streams at {ApiUrl}", config.ApiBaseUrl);
     }
 
     public async Task StopListeningAsync()

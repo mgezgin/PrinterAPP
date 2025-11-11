@@ -50,8 +50,16 @@ public partial class MainPage : ContentPage
             // Load saved configuration
             _config = await _printerService.LoadConfigurationAsync();
 
+            // Debug logging
+            _logger.LogInformation("Loaded API URL from config: {ApiUrl}", _config.ApiBaseUrl);
+            System.Diagnostics.Debug.WriteLine($"DEBUG: Loaded API URL = {_config.ApiBaseUrl}");
+
             // Update UI with loaded configuration
             ApiUrlEntry.Text = _config.ApiBaseUrl;
+
+            // Debug logging
+            _logger.LogInformation("Set ApiUrlEntry.Text to: {ApiUrl}", ApiUrlEntry.Text);
+            System.Diagnostics.Debug.WriteLine($"DEBUG: ApiUrlEntry.Text = {ApiUrlEntry.Text}");
             RestaurantNameEntry.Text = _config.RestaurantName;
             KitchenLocationEntry.Text = _config.KitchenLocation;
 
