@@ -42,7 +42,7 @@ public class OrderHistoryService
                 // Insert at the beginning (most recent first)
                 _orders.Insert(0, historyItem);
 
-                _logger.LogInformation("Order #{OrderId} added to history", orderEvent.Order.Id);
+                _logger.LogInformation("Order #{OrderNumber} added to history", orderEvent.Order.OrderNumber);
 
                 // Notify subscribers
                 OrderAdded?.Invoke(this, historyItem);
@@ -60,7 +60,7 @@ public class OrderHistoryService
         }
     }
 
-    public void UpdatePrintStatus(int orderId, bool kitchenPrinted, bool cashierPrinted)
+    public void UpdatePrintStatus(string orderId, bool kitchenPrinted, bool cashierPrinted)
     {
         lock (_lockObject)
         {
@@ -83,7 +83,7 @@ public class OrderHistoryService
         }
     }
 
-    public OrderHistoryItem? GetOrder(int orderId)
+    public OrderHistoryItem? GetOrder(string orderId)
     {
         lock (_lockObject)
         {
@@ -102,7 +102,7 @@ public class OrderHistoryItem
     public DateTime? LastPrintedAt { get; set; }
     public string Status { get; set; } = string.Empty;
 
-    public string DisplayText => $"Order #{Order.Id} - Table {Order.TableNumber} - {Order.Items.Count} items - ${Order.Total:F2}";
+    public string DisplayText => $"Order #{Order.OrderNumber} - {Order.Type} - Table {Order.TableNumber} - {Order.Items.Count} items - ${Order.Total:F2}";
     public string ReceivedAtText => ReceivedAt.ToLocalTime().ToString("HH:mm:ss");
     public string StatusColor => KitchenPrinted && CashierPrinted ? "Green" : CashierPrinted || KitchenPrinted ? "Orange" : "Red";
 }

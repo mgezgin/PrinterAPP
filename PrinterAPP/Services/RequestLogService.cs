@@ -1,4 +1,7 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 
 namespace PrinterAPP.Services;
@@ -140,8 +143,15 @@ public enum LogType
     Error
 }
 
-public class LogEntry
+public class LogEntry : INotifyPropertyChanged
 {
+    private bool _isRequestExpanded = false;
+    private bool _isResponseExpanded = false;
+    private bool _isRequestHeadersExpanded = false;
+    private bool _isResponseHeadersExpanded = false;
+    private bool _isRequestBodyExpanded = false;
+    private bool _isResponseBodyExpanded = false;
+
     public DateTime Timestamp { get; set; }
     public LogType Type { get; set; }
     public string Operation { get; set; } = string.Empty;
@@ -159,6 +169,99 @@ public class LogEntry
     public int? ResponseStatusCode { get; set; }
     public Dictionary<string, string>? ResponseHeaders { get; set; }
     public string? ResponseBody { get; set; }
+
+    // Expansion State Properties
+    public bool IsRequestExpanded
+    {
+        get => _isRequestExpanded;
+        set
+        {
+            if (_isRequestExpanded != value)
+            {
+                _isRequestExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RequestExpandIcon));
+            }
+        }
+    }
+
+    public bool IsResponseExpanded
+    {
+        get => _isResponseExpanded;
+        set
+        {
+            if (_isResponseExpanded != value)
+            {
+                _isResponseExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ResponseExpandIcon));
+            }
+        }
+    }
+
+    public bool IsRequestHeadersExpanded
+    {
+        get => _isRequestHeadersExpanded;
+        set
+        {
+            if (_isRequestHeadersExpanded != value)
+            {
+                _isRequestHeadersExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RequestHeadersExpandIcon));
+            }
+        }
+    }
+
+    public bool IsResponseHeadersExpanded
+    {
+        get => _isResponseHeadersExpanded;
+        set
+        {
+            if (_isResponseHeadersExpanded != value)
+            {
+                _isResponseHeadersExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ResponseHeadersExpandIcon));
+            }
+        }
+    }
+
+    public bool IsRequestBodyExpanded
+    {
+        get => _isRequestBodyExpanded;
+        set
+        {
+            if (_isRequestBodyExpanded != value)
+            {
+                _isRequestBodyExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RequestBodyExpandIcon));
+            }
+        }
+    }
+
+    public bool IsResponseBodyExpanded
+    {
+        get => _isResponseBodyExpanded;
+        set
+        {
+            if (_isResponseBodyExpanded != value)
+            {
+                _isResponseBodyExpanded = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ResponseBodyExpandIcon));
+            }
+        }
+    }
+
+    // Expand Icons
+    public string RequestExpandIcon => IsRequestExpanded ? "▼" : "▶";
+    public string ResponseExpandIcon => IsResponseExpanded ? "▼" : "▶";
+    public string RequestHeadersExpandIcon => IsRequestHeadersExpanded ? "▼" : "▶";
+    public string ResponseHeadersExpandIcon => IsResponseHeadersExpanded ? "▼" : "▶";
+    public string RequestBodyExpandIcon => IsRequestBodyExpanded ? "▼" : "▶";
+    public string ResponseBodyExpandIcon => IsResponseBodyExpanded ? "▼" : "▶";
 
     public string TimestampText => Timestamp.ToLocalTime().ToString("HH:mm:ss.fff");
 
@@ -196,4 +299,51 @@ public class LogEntry
     public string ResponseHeadersText => ResponseHeaders != null
         ? string.Join("\n", ResponseHeaders.Select(h => $"{h.Key}: {h.Value}"))
         : string.Empty;
+
+    // Formatted JSON Properties
+    public string RequestHeadersJson => FormatAsJson(RequestHeaders);
+    public string ResponseHeadersJson => FormatAsJson(ResponseHeaders);
+    public string RequestBodyJson => FormatJson(RequestBody);
+    public string ResponseBodyJson => FormatJson(ResponseBody);
+
+    private static string FormatAsJson(Dictionary<string, string>? dictionary)
+    {
+        if (dictionary == null || !dictionary.Any())
+            return string.Empty;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(dictionary, new JsonSerializerOptions { WriteIndented = true });
+            return json;
+        }
+        catch
+        {
+            return string.Join("\n", dictionary.Select(h => $"{h.Key}: {h.Value}"));
+        }
+    }
+
+    private static string FormatJson(string? jsonString)
+    {
+        if (string.IsNullOrWhiteSpace(jsonString))
+            return string.Empty;
+
+        try
+        {
+            // Try to parse and format as JSON
+            using var document = JsonDocument.Parse(jsonString);
+            return JsonSerializer.Serialize(document, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            // If not valid JSON, return as-is
+            return jsonString;
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
 }
