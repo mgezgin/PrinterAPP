@@ -107,7 +107,7 @@
                                            Margin="0,5,0,0"
                                            IsVisible="{Binding Details, Converter={StaticResource StringNotEmptyConverter}}"/>
 
-                                    <!-- Request Details Section -->
+                                    <!-- Request Details Section (Collapsible) -->
                                     <Frame Grid.Row="2"
                                            Padding="10"
                                            Margin="0,10,0,0"
@@ -115,75 +115,124 @@
                                            BackgroundColor="#E7F3FF"
                                            CornerRadius="5"
                                            IsVisible="{Binding HasRequestDetails}">
-                                        <StackLayout Spacing="5">
-                                            <Label Text="📤 REQUEST"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="#007BFF"/>
-
-                                            <!-- Request URL -->
-                                            <Grid ColumnDefinitions="Auto,*"
-                                                  IsVisible="{Binding RequestUrl, Converter={StaticResource StringNotEmptyConverter}}">
+                                        <StackLayout Spacing="8">
+                                            <!-- Request Header (Clickable) -->
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnToggleRequestSection"/>
+                                                </Grid.GestureRecognizers>
                                                 <Label Grid.Column="0"
-                                                       Text="URL:"
-                                                       FontSize="12"
+                                                       Text="{Binding RequestExpandIcon}"
+                                                       FontSize="14"
                                                        FontAttributes="Bold"
-                                                       WidthRequest="80"/>
+                                                       TextColor="#007BFF"
+                                                       VerticalOptions="Center"
+                                                       Margin="0,0,10,0"/>
                                                 <Label Grid.Column="1"
-                                                       Text="{Binding RequestUrl}"
-                                                       FontSize="12"
-                                                       LineBreakMode="CharacterWrap"/>
+                                                       Text="📤 REQUEST"
+                                                       FontSize="14"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#007BFF"
+                                                       VerticalOptions="Center"/>
                                             </Grid>
 
-                                            <!-- Request Method -->
-                                            <Grid ColumnDefinitions="Auto,*"
-                                                  IsVisible="{Binding RequestMethod, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Grid.Column="0"
-                                                       Text="Method:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"
-                                                       WidthRequest="80"/>
-                                                <Label Grid.Column="1"
-                                                       Text="{Binding RequestMethod}"
-                                                       FontSize="12"/>
-                                            </Grid>
-
-                                            <!-- Request Headers -->
-                                            <StackLayout IsVisible="{Binding RequestHeadersText, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Headers:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#007BFF">
-                                                    <Label Text="{Binding RequestHeadersText}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
+                                            <!-- Request Details (Expandable) -->
+                                            <StackLayout Spacing="5" IsVisible="{Binding IsRequestExpanded}">
+                                                <!-- Request URL -->
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding RequestUrl, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Label Grid.Column="0"
+                                                           Text="URL:"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           WidthRequest="80"/>
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding RequestUrl}"
+                                                           FontSize="12"
                                                            LineBreakMode="CharacterWrap"/>
-                                                </Frame>
-                                            </StackLayout>
+                                                </Grid>
 
-                                            <!-- Request Body -->
-                                            <StackLayout IsVisible="{Binding RequestBody, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Body:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#007BFF">
-                                                    <Label Text="{Binding RequestBody}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
-                                                           LineBreakMode="CharacterWrap"
-                                                           MaxLines="10"/>
-                                                </Frame>
+                                                <!-- Request Method -->
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding RequestMethod, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Label Grid.Column="0"
+                                                           Text="Method:"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           WidthRequest="80"/>
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding RequestMethod}"
+                                                           FontSize="12"/>
+                                                </Grid>
+
+                                                <!-- Request Headers (Expandable) -->
+                                                <StackLayout IsVisible="{Binding RequestHeadersJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleRequestHeaders"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding RequestHeadersExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Headers (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#007BFF"
+                                                           IsVisible="{Binding IsRequestHeadersExpanded}">
+                                                        <ScrollView MaximumHeightRequest="300">
+                                                            <Label Text="{Binding RequestHeadersJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
+
+                                                <!-- Request Body (Expandable) -->
+                                                <StackLayout IsVisible="{Binding RequestBodyJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleRequestBody"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding RequestBodyExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Body (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#007BFF"
+                                                           IsVisible="{Binding IsRequestBodyExpanded}">
+                                                        <ScrollView MaximumHeightRequest="400">
+                                                            <Label Text="{Binding RequestBodyJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
                                             </StackLayout>
                                         </StackLayout>
                                     </Frame>
 
-                                    <!-- Response Details Section -->
+                                    <!-- Response Details Section (Collapsible) -->
                                     <Frame Grid.Row="3"
                                            Padding="10"
                                            Margin="0,10,0,0"
@@ -191,56 +240,105 @@
                                            BackgroundColor="#E7F9EC"
                                            CornerRadius="5"
                                            IsVisible="{Binding HasResponseDetails}">
-                                        <StackLayout Spacing="5">
-                                            <Label Text="📥 RESPONSE"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="#28A745"/>
-
-                                            <!-- Response Status Code -->
-                                            <Grid ColumnDefinitions="Auto,*"
-                                                  IsVisible="{Binding ResponseStatusCode}">
+                                        <StackLayout Spacing="8">
+                                            <!-- Response Header (Clickable) -->
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnToggleResponseSection"/>
+                                                </Grid.GestureRecognizers>
                                                 <Label Grid.Column="0"
-                                                       Text="Status:"
-                                                       FontSize="12"
+                                                       Text="{Binding ResponseExpandIcon}"
+                                                       FontSize="14"
                                                        FontAttributes="Bold"
-                                                       WidthRequest="80"/>
+                                                       TextColor="#28A745"
+                                                       VerticalOptions="Center"
+                                                       Margin="0,0,10,0"/>
                                                 <Label Grid.Column="1"
-                                                       Text="{Binding ResponseStatusCode}"
-                                                       FontSize="12"/>
+                                                       Text="📥 RESPONSE"
+                                                       FontSize="14"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#28A745"
+                                                       VerticalOptions="Center"/>
                                             </Grid>
 
-                                            <!-- Response Headers -->
-                                            <StackLayout IsVisible="{Binding ResponseHeadersText, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Headers:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#28A745">
-                                                    <Label Text="{Binding ResponseHeadersText}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
-                                                           LineBreakMode="CharacterWrap"/>
-                                                </Frame>
-                                            </StackLayout>
+                                            <!-- Response Details (Expandable) -->
+                                            <StackLayout Spacing="5" IsVisible="{Binding IsResponseExpanded}">
+                                                <!-- Response Status Code -->
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding ResponseStatusCode}">
+                                                    <Label Grid.Column="0"
+                                                           Text="Status:"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           WidthRequest="80"/>
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding ResponseStatusCode}"
+                                                           FontSize="12"/>
+                                                </Grid>
 
-                                            <!-- Response Body -->
-                                            <StackLayout IsVisible="{Binding ResponseBody, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Body:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#28A745">
-                                                    <Label Text="{Binding ResponseBody}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
-                                                           LineBreakMode="CharacterWrap"
-                                                           MaxLines="10"/>
-                                                </Frame>
+                                                <!-- Response Headers (Expandable) -->
+                                                <StackLayout IsVisible="{Binding ResponseHeadersJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleResponseHeaders"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding ResponseHeadersExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Headers (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#28A745"
+                                                           IsVisible="{Binding IsResponseHeadersExpanded}">
+                                                        <ScrollView MaximumHeightRequest="300">
+                                                            <Label Text="{Binding ResponseHeadersJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
+
+                                                <!-- Response Body (Expandable) -->
+                                                <StackLayout IsVisible="{Binding ResponseBodyJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleResponseBody"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding ResponseBodyExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Body (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#28A745"
+                                                           IsVisible="{Binding IsResponseBodyExpanded}">
+                                                        <ScrollView MaximumHeightRequest="400">
+                                                            <Label Text="{Binding ResponseBodyJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
                                             </StackLayout>
                                         </StackLayout>
                                     </Frame>
@@ -309,7 +407,7 @@
                                            Margin="0,5,0,0"
                                            IsVisible="{Binding Details, Converter={StaticResource StringNotEmptyConverter}}"/>
 
-                                    <!-- Request Details Section -->
+                                    <!-- Request Details Section (Collapsible) -->
                                     <Frame Grid.Row="2"
                                            Padding="10"
                                            Margin="0,10,0,0"
@@ -317,75 +415,124 @@
                                            BackgroundColor="#E7F3FF"
                                            CornerRadius="5"
                                            IsVisible="{Binding HasRequestDetails}">
-                                        <StackLayout Spacing="5">
-                                            <Label Text="📤 REQUEST"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="#007BFF"/>
-
-                                            <!-- Request URL -->
-                                            <Grid ColumnDefinitions="Auto,*"
-                                                  IsVisible="{Binding RequestUrl, Converter={StaticResource StringNotEmptyConverter}}">
+                                        <StackLayout Spacing="8">
+                                            <!-- Request Header (Clickable) -->
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnToggleRequestSection"/>
+                                                </Grid.GestureRecognizers>
                                                 <Label Grid.Column="0"
-                                                       Text="URL:"
-                                                       FontSize="12"
+                                                       Text="{Binding RequestExpandIcon}"
+                                                       FontSize="14"
                                                        FontAttributes="Bold"
-                                                       WidthRequest="80"/>
+                                                       TextColor="#007BFF"
+                                                       VerticalOptions="Center"
+                                                       Margin="0,0,10,0"/>
                                                 <Label Grid.Column="1"
-                                                       Text="{Binding RequestUrl}"
-                                                       FontSize="12"
-                                                       LineBreakMode="CharacterWrap"/>
+                                                       Text="📤 REQUEST"
+                                                       FontSize="14"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#007BFF"
+                                                       VerticalOptions="Center"/>
                                             </Grid>
 
-                                            <!-- Request Method -->
-                                            <Grid ColumnDefinitions="Auto,*"
-                                                  IsVisible="{Binding RequestMethod, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Grid.Column="0"
-                                                       Text="Method:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"
-                                                       WidthRequest="80"/>
-                                                <Label Grid.Column="1"
-                                                       Text="{Binding RequestMethod}"
-                                                       FontSize="12"/>
-                                            </Grid>
-
-                                            <!-- Request Headers -->
-                                            <StackLayout IsVisible="{Binding RequestHeadersText, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Headers:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#007BFF">
-                                                    <Label Text="{Binding RequestHeadersText}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
+                                            <!-- Request Details (Expandable) -->
+                                            <StackLayout Spacing="5" IsVisible="{Binding IsRequestExpanded}">
+                                                <!-- Request URL -->
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding RequestUrl, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Label Grid.Column="0"
+                                                           Text="URL:"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           WidthRequest="80"/>
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding RequestUrl}"
+                                                           FontSize="12"
                                                            LineBreakMode="CharacterWrap"/>
-                                                </Frame>
-                                            </StackLayout>
+                                                </Grid>
 
-                                            <!-- Request Body -->
-                                            <StackLayout IsVisible="{Binding RequestBody, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Body:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#007BFF">
-                                                    <Label Text="{Binding RequestBody}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
-                                                           LineBreakMode="CharacterWrap"
-                                                           MaxLines="10"/>
-                                                </Frame>
+                                                <!-- Request Method -->
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding RequestMethod, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Label Grid.Column="0"
+                                                           Text="Method:"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           WidthRequest="80"/>
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding RequestMethod}"
+                                                           FontSize="12"/>
+                                                </Grid>
+
+                                                <!-- Request Headers (Expandable) -->
+                                                <StackLayout IsVisible="{Binding RequestHeadersJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleRequestHeaders"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding RequestHeadersExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Headers (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#007BFF"
+                                                           IsVisible="{Binding IsRequestHeadersExpanded}">
+                                                        <ScrollView MaximumHeightRequest="300">
+                                                            <Label Text="{Binding RequestHeadersJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
+
+                                                <!-- Request Body (Expandable) -->
+                                                <StackLayout IsVisible="{Binding RequestBodyJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleRequestBody"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding RequestBodyExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Body (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#007BFF"
+                                                           IsVisible="{Binding IsRequestBodyExpanded}">
+                                                        <ScrollView MaximumHeightRequest="400">
+                                                            <Label Text="{Binding RequestBodyJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
                                             </StackLayout>
                                         </StackLayout>
                                     </Frame>
 
-                                    <!-- Response Details Section -->
+                                    <!-- Response Details Section (Collapsible) -->
                                     <Frame Grid.Row="3"
                                            Padding="10"
                                            Margin="0,10,0,0"
@@ -393,56 +540,105 @@
                                            BackgroundColor="#E7F9EC"
                                            CornerRadius="5"
                                            IsVisible="{Binding HasResponseDetails}">
-                                        <StackLayout Spacing="5">
-                                            <Label Text="📥 RESPONSE"
-                                                   FontSize="14"
-                                                   FontAttributes="Bold"
-                                                   TextColor="#28A745"/>
-
-                                            <!-- Response Status Code -->
-                                            <Grid ColumnDefinitions="Auto,*"
-                                                  IsVisible="{Binding ResponseStatusCode}">
+                                        <StackLayout Spacing="8">
+                                            <!-- Response Header (Clickable) -->
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <Grid.GestureRecognizers>
+                                                    <TapGestureRecognizer Tapped="OnToggleResponseSection"/>
+                                                </Grid.GestureRecognizers>
                                                 <Label Grid.Column="0"
-                                                       Text="Status:"
-                                                       FontSize="12"
+                                                       Text="{Binding ResponseExpandIcon}"
+                                                       FontSize="14"
                                                        FontAttributes="Bold"
-                                                       WidthRequest="80"/>
+                                                       TextColor="#28A745"
+                                                       VerticalOptions="Center"
+                                                       Margin="0,0,10,0"/>
                                                 <Label Grid.Column="1"
-                                                       Text="{Binding ResponseStatusCode}"
-                                                       FontSize="12"/>
+                                                       Text="📥 RESPONSE"
+                                                       FontSize="14"
+                                                       FontAttributes="Bold"
+                                                       TextColor="#28A745"
+                                                       VerticalOptions="Center"/>
                                             </Grid>
 
-                                            <!-- Response Headers -->
-                                            <StackLayout IsVisible="{Binding ResponseHeadersText, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Headers:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#28A745">
-                                                    <Label Text="{Binding ResponseHeadersText}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
-                                                           LineBreakMode="CharacterWrap"/>
-                                                </Frame>
-                                            </StackLayout>
+                                            <!-- Response Details (Expandable) -->
+                                            <StackLayout Spacing="5" IsVisible="{Binding IsResponseExpanded}">
+                                                <!-- Response Status Code -->
+                                                <Grid ColumnDefinitions="Auto,*"
+                                                      IsVisible="{Binding ResponseStatusCode}">
+                                                    <Label Grid.Column="0"
+                                                           Text="Status:"
+                                                           FontSize="12"
+                                                           FontAttributes="Bold"
+                                                           WidthRequest="80"/>
+                                                    <Label Grid.Column="1"
+                                                           Text="{Binding ResponseStatusCode}"
+                                                           FontSize="12"/>
+                                                </Grid>
 
-                                            <!-- Response Body -->
-                                            <StackLayout IsVisible="{Binding ResponseBody, Converter={StaticResource StringNotEmptyConverter}}">
-                                                <Label Text="Body:"
-                                                       FontSize="12"
-                                                       FontAttributes="Bold"/>
-                                                <Frame Padding="5"
-                                                       BackgroundColor="White"
-                                                       CornerRadius="3"
-                                                       BorderColor="#28A745">
-                                                    <Label Text="{Binding ResponseBody}"
-                                                           FontSize="11"
-                                                           FontFamily="Courier New"
-                                                           LineBreakMode="CharacterWrap"
-                                                           MaxLines="10"/>
-                                                </Frame>
+                                                <!-- Response Headers (Expandable) -->
+                                                <StackLayout IsVisible="{Binding ResponseHeadersJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleResponseHeaders"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding ResponseHeadersExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Headers (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#28A745"
+                                                           IsVisible="{Binding IsResponseHeadersExpanded}">
+                                                        <ScrollView MaximumHeightRequest="300">
+                                                            <Label Text="{Binding ResponseHeadersJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
+
+                                                <!-- Response Body (Expandable) -->
+                                                <StackLayout IsVisible="{Binding ResponseBodyJson, Converter={StaticResource StringNotEmptyConverter}}">
+                                                    <Grid ColumnDefinitions="Auto,*">
+                                                        <Grid.GestureRecognizers>
+                                                            <TapGestureRecognizer Tapped="OnToggleResponseBody"/>
+                                                        </Grid.GestureRecognizers>
+                                                        <Label Grid.Column="0"
+                                                               Text="{Binding ResponseBodyExpandIcon}"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"
+                                                               Margin="0,0,5,0"/>
+                                                        <Label Grid.Column="1"
+                                                               Text="Body (JSON)"
+                                                               FontSize="12"
+                                                               FontAttributes="Bold"
+                                                               VerticalOptions="Center"/>
+                                                    </Grid>
+                                                    <Frame Padding="8"
+                                                           BackgroundColor="White"
+                                                           CornerRadius="3"
+                                                           BorderColor="#28A745"
+                                                           IsVisible="{Binding IsResponseBodyExpanded}">
+                                                        <ScrollView MaximumHeightRequest="400">
+                                                            <Label Text="{Binding ResponseBodyJson}"
+                                                                   FontSize="11"
+                                                                   FontFamily="Courier New"
+                                                                   LineBreakMode="CharacterWrap"/>
+                                                        </ScrollView>
+                                                    </Frame>
+                                                </StackLayout>
                                             </StackLayout>
                                         </StackLayout>
                                     </Frame>

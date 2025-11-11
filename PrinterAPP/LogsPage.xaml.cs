@@ -116,4 +116,53 @@ public partial class LogsPage : ContentPage
         KitchenTabButton.TextColor = Color.FromArgb("#666");
         KitchenTabButton.FontAttributes = FontAttributes.None;
     }
+
+    // Toggle methods for expandable sections
+    private void OnToggleRequestSection(object sender, EventArgs e)
+    {
+        if (sender is View view && view.BindingContext is LogEntry logEntry)
+        {
+            logEntry.IsRequestExpanded = !logEntry.IsRequestExpanded;
+        }
+    }
+
+    private void OnToggleResponseSection(object sender, EventArgs e)
+    {
+        if (sender is View view && view.BindingContext is LogEntry logEntry)
+        {
+            logEntry.IsResponseExpanded = !logEntry.IsResponseExpanded;
+        }
+    }
+
+    private void OnToggleRequestHeaders(object sender, EventArgs e)
+    {
+        if (sender is View view && view.BindingContext is LogEntry logEntry)
+        {
+            logEntry.IsRequestHeadersExpanded = !logEntry.IsRequestHeadersExpanded;
+        }
+    }
+
+    private void OnToggleResponseHeaders(object sender, EventArgs e)
+    {
+        if (sender is View view && view.BindingContext is LogEntry logEntry)
+        {
+            logEntry.IsResponseHeadersExpanded = !logEntry.IsResponseHeadersExpanded;
+        }
+    }
+
+    private void OnToggleRequestBody(object sender, EventArgs e)
+    {
+        if (sender is View view && view.BindingContext is LogEntry logEntry)
+        {
+            logEntry.IsRequestBodyExpanded = !logEntry.IsRequestBodyExpanded;
+        }
+    }
+
+    private void OnToggleResponseBody(object sender, EventArgs e)
+    {
+        if (sender is View view && view.BindingContext is LogEntry logEntry)
+        {
+            logEntry.IsResponseBodyExpanded = !logEntry.IsResponseBodyExpanded;
+        }
+    }
 }

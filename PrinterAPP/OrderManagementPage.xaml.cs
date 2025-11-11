@@ -70,14 +70,14 @@ public partial class OrderManagementPage : ContentPage
     {
         try
         {
-            if (sender is Button button && button.CommandParameter is int orderId)
+            if (sender is Button button && button.CommandParameter is string orderId)
             {
                 button.IsEnabled = false;
 
                 var orderItem = _orderHistoryService.GetOrder(orderId);
                 if (orderItem?.Order != null)
                 {
-                    _logger.LogInformation("Reprinting order #{OrderId} to kitchen", orderId);
+                    _logger.LogInformation("Reprinting order #{OrderNumber} to kitchen", orderItem.Order.OrderNumber);
 
                     var success = await _orderPrintService.PrintOrderAsync(
                         orderItem.Order,
@@ -86,7 +86,7 @@ public partial class OrderManagementPage : ContentPage
                     if (success)
                     {
                         _orderHistoryService.UpdatePrintStatus(orderId, true, orderItem.CashierPrinted);
-                        await DisplayAlert("Success", $"Order #{orderId} printed to kitchen", "OK");
+                        await DisplayAlert("Success", $"Order #{orderItem.Order.OrderNumber} printed to kitchen", "OK");
                     }
                     else
                     {
@@ -108,14 +108,14 @@ public partial class OrderManagementPage : ContentPage
     {
         try
         {
-            if (sender is Button button && button.CommandParameter is int orderId)
+            if (sender is Button button && button.CommandParameter is string orderId)
             {
                 button.IsEnabled = false;
 
                 var orderItem = _orderHistoryService.GetOrder(orderId);
                 if (orderItem?.Order != null)
                 {
-                    _logger.LogInformation("Reprinting order #{OrderId} to cashier", orderId);
+                    _logger.LogInformation("Reprinting order #{OrderNumber} to cashier", orderItem.Order.OrderNumber);
 
                     var success = await _orderPrintService.PrintOrderAsync(
                         orderItem.Order,
@@ -124,7 +124,7 @@ public partial class OrderManagementPage : ContentPage
                     if (success)
                     {
                         _orderHistoryService.UpdatePrintStatus(orderId, orderItem.KitchenPrinted, true);
-                        await DisplayAlert("Success", $"Order #{orderId} printed to cashier", "OK");
+                        await DisplayAlert("Success", $"Order #{orderItem.Order.OrderNumber} printed to cashier", "OK");
                     }
                     else
                     {
@@ -146,14 +146,14 @@ public partial class OrderManagementPage : ContentPage
     {
         try
         {
-            if (sender is Button button && button.CommandParameter is int orderId)
+            if (sender is Button button && button.CommandParameter is string orderId)
             {
                 button.IsEnabled = false;
 
                 var orderItem = _orderHistoryService.GetOrder(orderId);
                 if (orderItem?.Order != null)
                 {
-                    _logger.LogInformation("Reprinting order #{OrderId} to both printers", orderId);
+                    _logger.LogInformation("Reprinting order #{OrderNumber} to both printers", orderItem.Order.OrderNumber);
 
                     var kitchenSuccess = await _orderPrintService.PrintOrderAsync(
                         orderItem.Order,
@@ -166,7 +166,7 @@ public partial class OrderManagementPage : ContentPage
                     if (kitchenSuccess && cashierSuccess)
                     {
                         _orderHistoryService.UpdatePrintStatus(orderId, true, true);
-                        await DisplayAlert("Success", $"Order #{orderId} printed to both printers", "OK");
+                        await DisplayAlert("Success", $"Order #{orderItem.Order.OrderNumber} printed to both printers", "OK");
                     }
                     else if (kitchenSuccess || cashierSuccess)
                     {

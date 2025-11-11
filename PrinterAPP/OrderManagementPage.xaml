@@ -98,10 +98,13 @@
                                     <Label Text="{Binding Order.CreatedAt, StringFormat='Created: {0:yyyy-MM-dd HH:mm}'}"
                                            FontSize="12"
                                            TextColor="Gray"/>
-                                    <Label Text="{Binding Order.WaiterName, StringFormat='Waiter: {0}'}"
+                                    <Label Text="{Binding Order.CustomerName, StringFormat='Customer: {0}'}"
                                            FontSize="12"
                                            TextColor="Gray"
-                                           IsVisible="{Binding Order.WaiterName, Converter={StaticResource StringNotEmptyConverter}}"/>
+                                           IsVisible="{Binding Order.CustomerName, Converter={StaticResource StringNotEmptyConverter}}"/>
+                                    <Label Text="{Binding Order.Type, StringFormat='Type: {0}'}"
+                                           FontSize="12"
+                                           TextColor="Gray"/>
                                     <Label Text="{Binding Order.Status, StringFormat='Status: {0}'}"
                                            FontSize="12"
                                            TextColor="Gray"/>
@@ -119,7 +122,7 @@
                                                        FontSize="12"
                                                        FontAttributes="Bold"/>
                                                 <Label Grid.Column="1"
-                                                       Text="{Binding Name}"
+                                                       Text="{Binding ProductName}"
                                                        FontSize="12"/>
                                             </Grid>
                                         </DataTemplate>
