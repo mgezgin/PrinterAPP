@@ -79,7 +79,7 @@ public partial class MainPage : ContentPage
             // Update service status (Windows only)
             UpdateServiceStatus();
 
-            StatusLabel.Text = "Configuration loaded";
+            StatusLabel.Text = $"Configuration loaded - API: {_config.ApiBaseUrl}";
             StatusLabel.TextColor = Colors.Green;
         }
         catch (Exception ex)
@@ -183,6 +183,24 @@ public partial class MainPage : ContentPage
     }
 
     // Event Handlers
+
+    private void OnApiUrlChanged(object sender, TextChangedEventArgs e)
+    {
+        // Check if URL has changed from saved config
+        var currentUrl = ApiUrlEntry.Text?.Trim();
+        var savedUrl = _config.ApiBaseUrl?.Trim();
+        bool hasChanged = !string.Equals(currentUrl, savedUrl, StringComparison.OrdinalIgnoreCase);
+
+        if (hasChanged && !string.IsNullOrWhiteSpace(currentUrl))
+        {
+            ApiUrlChangeLabel.Text = "⚠️ API URL changed - Click 'Save Configuration' to apply";
+            ApiUrlChangeLabel.IsVisible = true;
+        }
+        else
+        {
+            ApiUrlChangeLabel.IsVisible = false;
+        }
+    }
 
     private async void OnServiceToggleClicked(object sender, EventArgs e)
     {
@@ -436,6 +454,9 @@ public partial class MainPage : ContentPage
 
             _logger.LogInformation("Configuration saved successfully");
             System.Diagnostics.Debug.WriteLine($"DEBUG SAVE: Configuration saved successfully");
+
+            // Hide the URL change warning
+            ApiUrlChangeLabel.IsVisible = false;
 
             StatusLabel.Text = "Configuration saved";
             StatusLabel.TextColor = Colors.Green;
