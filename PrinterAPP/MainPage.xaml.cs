@@ -348,8 +348,51 @@ public partial class MainPage : ContentPage
     {
         try
         {
+            // Check if API URL has changed
+            var newApiUrl = ApiUrlEntry.Text?.Trim();
+            var oldApiUrl = _config.ApiBaseUrl?.Trim();
+            bool apiUrlChanged = !string.Equals(newApiUrl, oldApiUrl, StringComparison.OrdinalIgnoreCase);
+
+            // If API URL changed and service is running, stop the service first
+            if (apiUrlChanged && _isServiceRunning)
+            {
+                var confirm = await DisplayAlert(
+                    "Service Running",
+                    "The API URL has changed. The service must be stopped before saving the new URL. Stop the service now?",
+                    "Yes, Stop Service",
+                    "Cancel");
+
+                if (!confirm)
+                {
+                    StatusLabel.Text = "Configuration save cancelled";
+                    StatusLabel.TextColor = Colors.Orange;
+                    return;
+                }
+
+                // Stop the service
+                StatusLabel.Text = "Stopping service due to API URL change...";
+                StatusLabel.TextColor = Colors.Orange;
+
+                try
+                {
+                    await _eventStreamingService.StopListeningAsync();
+                    _isServiceRunning = false;
+                    _config.IsServiceRunning = false;
+
+                    UpdateServiceStatus();
+
+                    await DisplayAlert("Service Stopped", "The service has been stopped. Please start it again after saving to use the new API URL.", "OK");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to stop service before URL change");
+                    await DisplayAlert("Error", $"Failed to stop service: {ex.Message}\nPlease stop the service manually before changing the API URL.", "OK");
+                    return;
+                }
+            }
+
             // Update configuration from UI
-            _config.ApiBaseUrl = ApiUrlEntry.Text;
+            _config.ApiBaseUrl = newApiUrl;
             _config.RestaurantName = RestaurantNameEntry.Text;
             _config.KitchenLocation = KitchenLocationEntry.Text;
 
@@ -383,7 +426,14 @@ public partial class MainPage : ContentPage
             StatusLabel.Text = "Configuration saved";
             StatusLabel.TextColor = Colors.Green;
 
-            await DisplayAlert("Success", "Configuration saved successfully!", "OK");
+            if (apiUrlChanged)
+            {
+                await DisplayAlert("Success", "Configuration saved successfully!\n\nThe API URL has been changed. Please start the service again to connect to the new API endpoint.", "OK");
+            }
+            else
+            {
+                await DisplayAlert("Success", "Configuration saved successfully!", "OK");
+            }
         }
         catch (Exception ex)
         {
