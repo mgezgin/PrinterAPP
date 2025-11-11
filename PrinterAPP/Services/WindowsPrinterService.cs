@@ -771,15 +771,30 @@ public class SimplePrinterService : IPrinterService
     {
         try
         {
-            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions 
-            { 
-                WriteIndented = true 
+            // Ensure directory exists
+            var directory = Path.GetDirectoryName(_configPath);
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+            {
+                Directory.CreateDirectory(directory);
+                System.Diagnostics.Debug.WriteLine($"Created config directory: {directory}");
+            }
+
+            var json = JsonSerializer.Serialize(config, new JsonSerializerOptions
+            {
+                WriteIndented = true
             });
+
+            System.Diagnostics.Debug.WriteLine($"Saving config to: {_configPath}");
+            System.Diagnostics.Debug.WriteLine($"Config content: {json}");
+
             await File.WriteAllTextAsync(_configPath, json);
+
+            System.Diagnostics.Debug.WriteLine($"Config saved successfully to: {_configPath}");
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"Error saving config: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"Stack trace: {ex.StackTrace}");
             throw;
         }
     }
