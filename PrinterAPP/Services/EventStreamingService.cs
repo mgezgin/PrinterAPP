@@ -40,6 +40,11 @@ public class EventStreamingService : IEventStreamingService
         }
 
         var config = await _printerService.LoadConfigurationAsync();
+
+        // Debug logging
+        _logger.LogInformation("SERVICE: Loaded API Base URL from config: {ApiUrl}", config.ApiBaseUrl);
+        System.Diagnostics.Debug.WriteLine($"DEBUG SERVICE: API Base URL = {config.ApiBaseUrl}");
+
         if (string.IsNullOrWhiteSpace(config.ApiBaseUrl))
         {
             OnConnectionStatusChanged("Error: API Base URL not configured");
