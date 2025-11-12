@@ -79,7 +79,7 @@ public partial class MainPage : ContentPage
             // Update service status (Windows only)
             UpdateServiceStatus();
 
-            StatusLabel.Text = "Configuration loaded";
+            StatusLabel.Text = $"Configuration loaded - API: {_config.ApiBaseUrl}";
             StatusLabel.TextColor = Colors.Green;
         }
         catch (Exception ex)
@@ -183,6 +183,24 @@ public partial class MainPage : ContentPage
     }
 
     // Event Handlers
+
+    private void OnApiUrlChanged(object sender, TextChangedEventArgs e)
+    {
+        // Check if URL has changed from saved config
+        var currentUrl = ApiUrlEntry.Text?.Trim();
+        var savedUrl = _config.ApiBaseUrl?.Trim();
+        bool hasChanged = !string.Equals(currentUrl, savedUrl, StringComparison.OrdinalIgnoreCase);
+
+        if (hasChanged && !string.IsNullOrWhiteSpace(currentUrl))
+        {
+            ApiUrlChangeLabel.Text = "⚠️ API URL changed - Click 'Save Configuration' to apply";
+            ApiUrlChangeLabel.IsVisible = true;
+        }
+        else
+        {
+            ApiUrlChangeLabel.IsVisible = false;
+        }
+    }
 
     private async void OnServiceToggleClicked(object sender, EventArgs e)
     {
@@ -429,18 +447,40 @@ public partial class MainPage : ContentPage
             }
 
             // Save configuration
+            _logger.LogInformation("Saving configuration with API URL: {ApiUrl}", _config.ApiBaseUrl);
+            System.Diagnostics.Debug.WriteLine($"DEBUG SAVE: Saving config with API URL = {_config.ApiBaseUrl}");
+
             await _printerService.SaveConfigurationAsync(_config);
+
+            _logger.LogInformation("Configuration saved successfully");
+            System.Diagnostics.Debug.WriteLine($"DEBUG SAVE: Configuration saved successfully");
+
+            // Hide the URL change warning
+            ApiUrlChangeLabel.IsVisible = false;
 
             StatusLabel.Text = "Configuration saved";
             StatusLabel.TextColor = Colors.Green;
 
+            var configPath = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                "KitchenPrinter",
+                "config.json");
+
             if (apiUrlChanged)
             {
-                await DisplayAlert("Success", "Configuration saved successfully!\n\nThe API URL has been changed. Please start the service again to connect to the new API endpoint.", "OK");
+                await DisplayAlert("Success",
+                    $"Configuration saved successfully!\n\n" +
+                    $"API URL: {_config.ApiBaseUrl}\n" +
+                    $"Config file: {configPath}\n\n" +
+                    $"Please start the service again to connect to the new API endpoint.",
+                    "OK");
             }
             else
             {
-                await DisplayAlert("Success", "Configuration saved successfully!", "OK");
+                await DisplayAlert("Success",
+                    $"Configuration saved successfully!\n\n" +
+                    $"Config file: {configPath}",
+                    "OK");
             }
         }
         catch (Exception ex)

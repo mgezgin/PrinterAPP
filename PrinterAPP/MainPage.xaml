@@ -44,7 +44,8 @@
                     <Label Text="API Base URL" FontSize="14" TextColor="Gray"/>
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
                         <Entry x:Name="ApiUrlEntry"
-                               Placeholder="https://localhost:44386"/>
+                               Placeholder="https://localhost:44386"
+                               TextChanged="OnApiUrlChanged"/>
                         <Button Text="Test"
                                 Grid.Column="1"
                                 BackgroundColor="#2196F3"
@@ -52,6 +53,11 @@
                                 WidthRequest="80"
                                 Clicked="OnTestApiClicked"/>
                     </Grid>
+                    <Label x:Name="ApiUrlChangeLabel"
+                           Text=""
+                           FontSize="12"
+                           TextColor="Orange"
+                           IsVisible="False"/>
                 </VerticalStackLayout>
             </Frame>
 
