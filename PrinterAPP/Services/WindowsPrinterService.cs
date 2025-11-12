@@ -750,7 +750,7 @@ public class SimplePrinterService : IPrinterService
                 if (config.ApiBaseUrl == "http://localhost:5221" ||
                     config.ApiBaseUrl == "https://localhost:5221")
                 {
-                    config.ApiBaseUrl = "https://localhost:44386";
+                    config.ApiBaseUrl = "https://www.rumirestaurant.ch";
                     // Save the updated configuration
                     await SaveConfigurationAsync(config);
                     System.Diagnostics.Debug.WriteLine("Migrated API URL from localhost:5221 to localhost:44386");
