@@ -18,11 +18,13 @@ public class OrderPrintService
     private const string ESC_EMPHASIZED_OFF = "\x1B\x47\x00"; // Emphasized off
     private const string ESC_DOUBLE_ON = "\x1D\x21\x11"; // Double width and height
     private const string ESC_DOUBLE_OFF = "\x1D\x21\x00"; // Normal size
+    private const string ESC_LARGE_ON = "\x1D\x21\x22"; // 2x width, 3x height (larger size for kitchen)
     private const string ESC_ALIGN_CENTER = "\x1B\x61\x01"; // Center align
     private const string ESC_ALIGN_LEFT = "\x1B\x61\x00"; // Left align
     private const string ESC_CUT = "\x1D\x56\x00"; // Full cut
     private const string ESC_PARTIAL_CUT = "\x1D\x56\x01"; // Partial cut
     private const string ESC_FEED_AND_CUT = "\x1B\x64\x03"; // Feed 3 lines and cut
+    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x09"; // Set Turkish code page (PC857)
 
     // Combined commands for MAXIMUM darkness
     private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
@@ -125,38 +127,47 @@ public class OrderPrintService
     {
         var sb = new StringBuilder();
 
-        // Initialize printer
+        // Initialize printer and set Turkish code page
         sb.Append(ESC_INIT);
+        sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // Header - EXTRA DARK, Bold, and Double Size for maximum visibility
+        // Header - EXTRA DARK, Bold, and Large Size for maximum visibility
         sb.Append(ESC_ALIGN_CENTER);
-        sb.Append(ESC_DOUBLE_ON);
+        sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"{config.RestaurantName}");
+        sb.AppendLine($"=== MUTFAK SİPARİŞİ ===");
         sb.Append(ESC_DOUBLE_OFF);
-
-        sb.AppendLine($"=== KITCHEN ORDER ===");
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
-        // Order info - EXTRA DARK for maximum visibility
+        // Order info - EXTRA DARK and larger font for maximum visibility
         sb.Append(ESC_ALIGN_LEFT);
+        sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Order #: {order.OrderNumber}");
-        sb.AppendLine($"Type: {order.Type}");
-        sb.AppendLine($"Table: {order.TableNumber}");
-        sb.AppendLine($"Time: {order.OrderDate:HH:mm:ss}");
+
+        // Convert to local time if needed
+        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
+            ? order.OrderDate.ToLocalTime()
+            : order.OrderDate;
+
+        sb.AppendLine($"Sipariş #: {order.OrderNumber}");
+        sb.AppendLine($"Tür: {order.Type}");
+        sb.AppendLine($"Masa: {order.TableNumber}");
+        sb.AppendLine($"Saat: {localTime:HH:mm:ss}");
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
-            sb.AppendLine($"Customer: {order.CustomerName}");
+            sb.AppendLine($"Müşteri: {order.CustomerName}");
         }
         sb.Append(EXTRA_DARK_OFF);
+        sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Items header - EXTRA DARK
+        // Items header - EXTRA DARK and larger
+        sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("ITEMS:");
+        sb.AppendLine("ÜRÜNLER:");
         sb.Append(EXTRA_DARK_OFF);
+        sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
 
         // Log item count for debugging
@@ -169,26 +180,32 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - EXTRA DARK (NO PRICES for kitchen)
+                // Item name and quantity - EXTRA DARK and larger (NO PRICES for kitchen)
+                sb.Append(ESC_LARGE_ON);
                 sb.Append(EXTRA_DARK_ON);
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
                 sb.Append(EXTRA_DARK_OFF);
+                sb.Append(ESC_DOUBLE_OFF);
 
                 // Show variation if available
                 if (!string.IsNullOrWhiteSpace(item.VariationName))
                 {
+                    sb.Append(ESC_DOUBLE_ON);
                     sb.Append(EXTRA_DARK_ON);
-                    sb.AppendLine($"   Variation: {item.VariationName}");
+                    sb.AppendLine($"   Seçenek: {item.VariationName}");
                     sb.Append(EXTRA_DARK_OFF);
+                    sb.Append(ESC_DOUBLE_OFF);
                 }
 
                 // Show special instructions
                 if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
                 {
                     // Item notes - EXTRA DARK for visibility
+                    sb.Append(ESC_DOUBLE_ON);
                     sb.Append(EXTRA_DARK_ON);
-                    sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
+                    sb.AppendLine($"   NOT: {item.SpecialInstructions}");
                     sb.Append(EXTRA_DARK_OFF);
+                    sb.Append(ESC_DOUBLE_OFF);
                 }
                 sb.AppendLine();
             }
@@ -197,17 +214,19 @@ public class OrderPrintService
         {
             // No items found - log warning
             _logger.LogWarning("No items found in order {OrderNumber}", order.OrderNumber);
-            sb.AppendLine("(No items in order)");
+            sb.AppendLine("(Siparişte ürün yok)");
         }
 
-        // Order notes - EXTRA DARK for important information
+        // Order notes - EXTRA DARK and larger for important information
         if (!string.IsNullOrWhiteSpace(order.Notes))
         {
             sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
+            sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("ORDER NOTES:");
+            sb.AppendLine("SİPARİŞ NOTLARI:");
             sb.AppendLine(order.Notes);
             sb.Append(EXTRA_DARK_OFF);
+            sb.Append(ESC_DOUBLE_OFF);
             sb.AppendLine();
         }
 
@@ -215,19 +234,23 @@ public class OrderPrintService
         if (order.Type == "Delivery" && !string.IsNullOrWhiteSpace(order.DeliveryAddress))
         {
             sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
+            sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("DELIVERY ADDRESS:");
+            sb.AppendLine("TESLİMAT ADRESİ:");
             sb.AppendLine(order.DeliveryAddress);
             sb.Append(EXTRA_DARK_OFF);
+            sb.Append(ESC_DOUBLE_OFF);
             sb.AppendLine();
         }
 
-        // Footer - EXTRA DARK for urgent message
+        // Footer - EXTRA DARK and larger for urgent message
         sb.AppendLine(new string('=', paperWidth == 80 ? 48 : 32));
         sb.Append(ESC_ALIGN_CENTER);
+        sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("PREPARE IMMEDIATELY");
+        sb.AppendLine("HEMEN HAZIRLA");
         sb.Append(EXTRA_DARK_OFF);
+        sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine();
@@ -403,7 +426,10 @@ public class OrderPrintService
     private bool PrintToWindowsPrinter(string printerName, string content)
     {
 #if WINDOWS
-        var bytes = Encoding.UTF8.GetBytes(content);
+        // Use Windows-1254 (Turkish) encoding for proper Turkish character support
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var encoding = Encoding.GetEncoding(1254); // Windows-1254 Turkish encoding
+        var bytes = encoding.GetBytes(content);
 
         var docInfo = new DOCINFOA
         {
