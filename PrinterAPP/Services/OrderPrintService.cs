@@ -264,8 +264,9 @@ public class OrderPrintService
     {
         var sb = new StringBuilder();
 
-        // Initialize printer
+        // Initialize printer and set Turkish code page for character support
         sb.Append(ESC_INIT);
+        sb.Append(ESC_CODEPAGE_TURKISH);
 
         // Header - EXTRA DARK, Bold, and Double Size
         sb.Append(ESC_ALIGN_CENTER);
@@ -278,13 +279,18 @@ public class OrderPrintService
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
+        // Convert to local time if needed
+        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
+            ? order.OrderDate.ToLocalTime()
+            : order.OrderDate;
+
         // Order info - EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
         sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order #: {order.OrderNumber}");
         sb.AppendLine($"Type: {order.Type}");
         sb.AppendLine($"Table: {order.TableNumber}");
-        sb.AppendLine($"Date: {order.OrderDate:yyyy-MM-dd HH:mm}");
+        sb.AppendLine($"Date: {localTime:yyyy-MM-dd HH:mm}");
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
             sb.AppendLine($"Customer: {order.CustomerName}");
