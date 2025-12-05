@@ -127,7 +127,7 @@ public class OrderPrintService
     {
         var sb = new StringBuilder();
 
-        // Initialize printer and set Turkish code page
+        // Initialize printer and set Turkish code page for character support
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
@@ -135,7 +135,7 @@ public class OrderPrintService
         sb.Append(ESC_ALIGN_CENTER);
         sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"=== MUTFAK SİPARİŞİ ===");
+        sb.AppendLine($"=== KITCHEN ORDER ===");
         sb.Append(ESC_DOUBLE_OFF);
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
@@ -150,13 +150,13 @@ public class OrderPrintService
             ? order.OrderDate.ToLocalTime()
             : order.OrderDate;
 
-        sb.AppendLine($"Sipariş #: {order.OrderNumber}");
-        sb.AppendLine($"Tür: {order.Type}");
-        sb.AppendLine($"Masa: {order.TableNumber}");
-        sb.AppendLine($"Saat: {localTime:HH:mm:ss}");
+        sb.AppendLine($"Order #: {order.OrderNumber}");
+        sb.AppendLine($"Type: {order.Type}");
+        sb.AppendLine($"Table: {order.TableNumber}");
+        sb.AppendLine($"Time: {localTime:HH:mm:ss}");
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
-            sb.AppendLine($"Müşteri: {order.CustomerName}");
+            sb.AppendLine($"Customer: {order.CustomerName}");
         }
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
@@ -165,7 +165,7 @@ public class OrderPrintService
         // Items header - EXTRA DARK and larger
         sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("ÜRÜNLER:");
+        sb.AppendLine("ITEMS:");
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
@@ -192,7 +192,7 @@ public class OrderPrintService
                 {
                     sb.Append(ESC_DOUBLE_ON);
                     sb.Append(EXTRA_DARK_ON);
-                    sb.AppendLine($"   Seçenek: {item.VariationName}");
+                    sb.AppendLine($"   Variation: {item.VariationName}");
                     sb.Append(EXTRA_DARK_OFF);
                     sb.Append(ESC_DOUBLE_OFF);
                 }
@@ -203,7 +203,7 @@ public class OrderPrintService
                     // Item notes - EXTRA DARK for visibility
                     sb.Append(ESC_DOUBLE_ON);
                     sb.Append(EXTRA_DARK_ON);
-                    sb.AppendLine($"   NOT: {item.SpecialInstructions}");
+                    sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
                     sb.Append(EXTRA_DARK_OFF);
                     sb.Append(ESC_DOUBLE_OFF);
                 }
@@ -214,7 +214,7 @@ public class OrderPrintService
         {
             // No items found - log warning
             _logger.LogWarning("No items found in order {OrderNumber}", order.OrderNumber);
-            sb.AppendLine("(Siparişte ürün yok)");
+            sb.AppendLine("(No items in order)");
         }
 
         // Order notes - EXTRA DARK and larger for important information
@@ -223,7 +223,7 @@ public class OrderPrintService
             sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
             sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("SİPARİŞ NOTLARI:");
+            sb.AppendLine("ORDER NOTES:");
             sb.AppendLine(order.Notes);
             sb.Append(EXTRA_DARK_OFF);
             sb.Append(ESC_DOUBLE_OFF);
@@ -236,7 +236,7 @@ public class OrderPrintService
             sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
             sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("TESLİMAT ADRESİ:");
+            sb.AppendLine("DELIVERY ADDRESS:");
             sb.AppendLine(order.DeliveryAddress);
             sb.Append(EXTRA_DARK_OFF);
             sb.Append(ESC_DOUBLE_OFF);
@@ -248,7 +248,7 @@ public class OrderPrintService
         sb.Append(ESC_ALIGN_CENTER);
         sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("HEMEN HAZIRLA");
+        sb.AppendLine("PREPARE IMMEDIATELY");
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
