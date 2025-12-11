@@ -35,7 +35,7 @@ public class PrinterConfiguration
     public int PaperWidth { get; set; } = 80;
 
     // Restaurant Information
-    public string RestaurantName { get; set; } = "Your Restaurant";
+    public string RestaurantName { get; set; } = "RUM-I RESTAURANT";
     public string KitchenLocation { get; set; } = "Main Kitchen";
 
     // Service Status
