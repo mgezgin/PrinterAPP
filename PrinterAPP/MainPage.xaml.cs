@@ -73,6 +73,11 @@ public partial class MainPage : ContentPage
             CashierPrintCopiesEntry.Text = _config.CashierPrintCopies.ToString();
             CashierPaperWidthPicker.SelectedIndex = _config.CashierPaperWidth == 80 ? 0 : 1;
 
+            // Time restriction settings
+            EnableTimeRestrictionSwitch.IsToggled = _config.EnableTimeRestriction;
+            RestrictStartTimePicker.Time = _config.RestrictStartTime;
+            RestrictEndTimePicker.Time = _config.RestrictEndTime;
+
             // Load available printers
             await LoadPrintersAsync();
 
@@ -446,6 +451,11 @@ public partial class MainPage : ContentPage
                 _config.CashierPrinterName = CashierPrinterPicker.SelectedItem.ToString()!.Replace(" (Default)", "").Trim();
             }
 
+            // Time restriction settings
+            _config.EnableTimeRestriction = EnableTimeRestrictionSwitch.IsToggled;
+            _config.RestrictStartTime = RestrictStartTimePicker.Time;
+            _config.RestrictEndTime = RestrictEndTimePicker.Time;
+
             // Save configuration
             _logger.LogInformation("Saving configuration with API URL: {ApiUrl}", _config.ApiBaseUrl);
             System.Diagnostics.Debug.WriteLine($"DEBUG SAVE: Saving config with API URL = {_config.ApiBaseUrl}");
@@ -576,6 +586,11 @@ public partial class MainPage : ContentPage
                 CashierAutoPrintSwitch.IsToggled = _config.CashierAutoPrint;
                 CashierPrintCopiesEntry.Text = _config.CashierPrintCopies.ToString();
                 CashierPaperWidthPicker.SelectedIndex = _config.CashierPaperWidth == 80 ? 0 : 1;
+
+                // Time restriction settings
+                EnableTimeRestrictionSwitch.IsToggled = _config.EnableTimeRestriction;
+                RestrictStartTimePicker.Time = _config.RestrictStartTime;
+                RestrictEndTimePicker.Time = _config.RestrictEndTime;
 
                 if (KitchenPrinterPicker.ItemsSource != null && KitchenPrinterPicker.ItemsSource.Cast<object>().Any())
                 {

@@ -40,7 +40,7 @@ public class OrderPrintService
         _logger = logger;
     }
 
-    public async Task<bool> PrintOrderAsync(Order order, PrinterType printerType, CancellationToken cancellationToken = default)
+    public async Task<bool> PrintOrderAsync(Order order, PrinterType printerType, bool isManualPrint = false, CancellationToken cancellationToken = default)
     {
         // Extract order number for logging (parse the numeric part)
         int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var orderNumParsed) ? orderNumParsed : 0;
@@ -69,10 +69,36 @@ public class OrderPrintService
                 paperWidth = config.CashierPaperWidth;
             }
 
-            if (!autoPrint)
+            // Check auto-print settings (only for automatic printing)
+            if (!isManualPrint && !autoPrint)
             {
                 _logger.LogInformation("Auto-print disabled for {PrinterType}", printerType);
                 return true;
+            }
+
+            // Check time restrictions (only for automatic printing)
+            if (!isManualPrint && config.EnableTimeRestriction)
+            {
+                var now = DateTime.Now.TimeOfDay;
+                bool isInRestrictedTime = false;
+
+                if (config.RestrictStartTime < config.RestrictEndTime)
+                {
+                    // Normal case: e.g., 12:00 - 13:00
+                    isInRestrictedTime = now >= config.RestrictStartTime && now < config.RestrictEndTime;
+                }
+                else
+                {
+                    // Overnight case: e.g., 23:00 - 01:00
+                    isInRestrictedTime = now >= config.RestrictStartTime || now < config.RestrictEndTime;
+                }
+
+                if (isInRestrictedTime)
+                {
+                    _logger.LogInformation("Auto-print skipped for {PrinterType} - current time {Time} is within restricted period {Start}-{End}",
+                        printerType, now.ToString(@"hh\:mm"), config.RestrictStartTime.ToString(@"hh\:mm"), config.RestrictEndTime.ToString(@"hh\:mm"));
+                    return true; // Return true to indicate no error, just skipped
+                }
             }
 
             if (string.IsNullOrWhiteSpace(printerName))

@@ -24,6 +24,11 @@ public class PrinterConfiguration
     public int CashierPrintCopies { get; set; } = 1;
     public int CashierPaperWidth { get; set; } = 80;
 
+    // Time-based Auto-Print Restrictions
+    public bool EnableTimeRestriction { get; set; } = false;
+    public TimeSpan RestrictStartTime { get; set; } = new TimeSpan(12, 0, 0); // 12:00
+    public TimeSpan RestrictEndTime { get; set; } = new TimeSpan(13, 0, 0); // 13:00
+
     // Legacy properties for backward compatibility
     [Obsolete("Use KitchenPrinterName instead")]
     public string PrinterName { get; set; } = "";
