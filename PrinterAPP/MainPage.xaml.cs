@@ -84,8 +84,35 @@ public partial class MainPage : ContentPage
             // Update service status (Windows only)
             UpdateServiceStatus();
 
+            // Auto-start service if it was running before (Windows only)
+#if WINDOWS
+            if (_config.IsServiceRunning && !_eventStreamingService.IsListening)
+            {
+                try
+                {
+                    _logger.LogInformation("Auto-starting SSE service based on saved configuration");
+                    await _eventStreamingService.StartListeningAsync();
+                    _isServiceRunning = true;
+                    UpdateServiceStatus();
+                    StatusLabel.Text = $"Service auto-started - API: {_config.ApiBaseUrl}";
+                    StatusLabel.TextColor = Colors.Green;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to auto-start SSE service");
+                    StatusLabel.Text = "Failed to auto-start service";
+                    StatusLabel.TextColor = Colors.Orange;
+                }
+            }
+            else
+            {
+                StatusLabel.Text = $"Configuration loaded - API: {_config.ApiBaseUrl}";
+                StatusLabel.TextColor = Colors.Green;
+            }
+#else
             StatusLabel.Text = $"Configuration loaded - API: {_config.ApiBaseUrl}";
             StatusLabel.TextColor = Colors.Green;
+#endif
         }
         catch (Exception ex)
         {
