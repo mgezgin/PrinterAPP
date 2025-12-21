@@ -9,7 +9,7 @@ public class Order
     public string? CustomerEmail { get; set; }
     public string? CustomerPhone { get; set; }
     public string Type { get; set; } = string.Empty; // DineIn, TakeAway, Delivery
-    public int TableNumber { get; set; }
+    public int? TableNumber { get; set; } // Nullable for Takeaway/Delivery orders
     public decimal SubTotal { get; set; }
     public decimal Tax { get; set; }
     public decimal DeliveryFee { get; set; }

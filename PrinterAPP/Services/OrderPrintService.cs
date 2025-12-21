@@ -176,7 +176,16 @@ public class OrderPrintService
         // Order # and Table - LARGER for visibility
         sb.Append(ESC_DOUBLE_ON);
         sb.AppendLine($"Order #: {order.OrderNumber}");
-        sb.AppendLine($"Table: {order.TableNumber}");
+
+        // Handle table number (null for Takeaway/Delivery)
+        if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
+        {
+            sb.AppendLine($"Table: {order.TableNumber}");
+        }
+        else
+        {
+            sb.AppendLine($"Table: N/A");
+        }
         sb.Append(ESC_DOUBLE_OFF);
 
         // Rest of info - normal size
@@ -185,6 +194,14 @@ public class OrderPrintService
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
             sb.AppendLine($"Customer: {order.CustomerName}");
+        }
+        if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
+        {
+            sb.AppendLine($"Email: {order.CustomerEmail}");
+        }
+        if (!string.IsNullOrWhiteSpace(order.CustomerPhone))
+        {
+            sb.AppendLine($"Phone: {order.CustomerPhone}");
         }
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
@@ -302,11 +319,25 @@ public class OrderPrintService
         sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order #: {order.OrderNumber}");
         sb.AppendLine($"Type: {order.Type}");
-        sb.AppendLine($"Table: {order.TableNumber}");
+
+        // Handle table number (null for Takeaway/Delivery)
+        if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
+        {
+            sb.AppendLine($"Table: {order.TableNumber}");
+        }
+        else
+        {
+            sb.AppendLine($"Table: N/A");
+        }
+
         sb.AppendLine($"Date: {localTime:yyyy-MM-dd HH:mm}");
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
             sb.AppendLine($"Customer: {order.CustomerName}");
+        }
+        if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
+        {
+            sb.AppendLine($"Email: {order.CustomerEmail}");
         }
         if (!string.IsNullOrWhiteSpace(order.CustomerPhone))
         {
