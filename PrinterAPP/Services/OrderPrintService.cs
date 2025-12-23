@@ -157,9 +157,8 @@ public class OrderPrintService
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // Order # and Table - LARGE and EXTRA DARK for visibility
+        // Order # and Table - Normal size, EXTRA DARK
         sb.Append(ESC_ALIGN_LEFT);
-        sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order: {order.OrderNumber}");
 
@@ -173,11 +172,7 @@ public class OrderPrintService
             sb.AppendLine($"Table: N/A");
         }
         sb.Append(EXTRA_DARK_OFF);
-        sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
-
-        // Items - EXTRA DARK
-        sb.Append(EXTRA_DARK_ON);
 
         // Log item count for debugging
         _logger.LogInformation("Printing {ItemCount} items for order {OrderNumber}", order.Items?.Count ?? 0, order.OrderNumber);
@@ -189,19 +184,27 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - EXTRA DARK (NO PRICES for kitchen)
+                // Item name and quantity - LARGE and EXTRA DARK for visibility
+                sb.Append(ESC_LARGE_ON);
+                sb.Append(EXTRA_DARK_ON);
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
+                sb.Append(EXTRA_DARK_OFF);
+                sb.Append(ESC_DOUBLE_OFF);
 
-                // Show variation if available
+                // Show variation if available (normal size)
                 if (!string.IsNullOrWhiteSpace(item.VariationName))
                 {
+                    sb.Append(EXTRA_DARK_ON);
                     sb.AppendLine($"   - {item.VariationName}");
+                    sb.Append(EXTRA_DARK_OFF);
                 }
 
-                // Show special instructions
+                // Show special instructions (normal size)
                 if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
                 {
+                    sb.Append(EXTRA_DARK_ON);
                     sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
+                    sb.Append(EXTRA_DARK_OFF);
                 }
                 sb.AppendLine();
             }
@@ -213,7 +216,6 @@ public class OrderPrintService
             sb.AppendLine("(No items in order)");
         }
 
-        sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
         sb.AppendLine();
 
