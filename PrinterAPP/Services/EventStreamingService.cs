@@ -60,7 +60,7 @@ public class EventStreamingService : IEventStreamingService
         _isListening = true;
 
         // Start listening to kitchen endpoint only (both printers will receive from this endpoint)
-        _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "kitchen", _cancellationTokenSource.Token);
+        _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "service", _cancellationTokenSource.Token);
 
         OnConnectionStatusChanged("Connected to Kitchen SSE stream");
         _logger.LogInformation("Started listening to Kitchen SSE stream");
