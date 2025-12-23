@@ -157,25 +157,11 @@ public class OrderPrintService
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // Header - EXTRA DARK (same size as cashier)
-        sb.Append(ESC_ALIGN_CENTER);
-        sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"=== KITCHEN ORDER ===");
-        sb.Append(EXTRA_DARK_OFF);
-        sb.AppendLine();
-
-        // Convert to local time if needed
-        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
-            ? order.OrderDate.ToLocalTime()
-            : order.OrderDate;
-
-        // Order info - EXTRA DARK
+        // Order # and Table - LARGE and EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
+        sb.Append(ESC_LARGE_ON);
         sb.Append(EXTRA_DARK_ON);
-
-        // Order # and Table - LARGER for visibility
-        sb.Append(ESC_DOUBLE_ON);
-        sb.AppendLine($"Order #: {order.OrderNumber}");
+        sb.AppendLine($"Order: {order.OrderNumber}");
 
         // Handle table number (null for Takeaway/Delivery)
         if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
@@ -186,31 +172,12 @@ public class OrderPrintService
         {
             sb.AppendLine($"Table: N/A");
         }
-        sb.Append(ESC_DOUBLE_OFF);
-
-        // Rest of info - normal size
-        sb.AppendLine($"Type: {order.Type}");
-        sb.AppendLine($"Time: {localTime:HH:mm:ss}");
-        if (!string.IsNullOrWhiteSpace(order.CustomerName))
-        {
-            sb.AppendLine($"Customer: {order.CustomerName}");
-        }
-        if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
-        {
-            sb.AppendLine($"Email: {order.CustomerEmail}");
-        }
-        if (!string.IsNullOrWhiteSpace(order.CustomerPhone))
-        {
-            sb.AppendLine($"Phone: {order.CustomerPhone}");
-        }
         sb.Append(EXTRA_DARK_OFF);
+        sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Items header - EXTRA DARK (same size as cashier)
+        // Items - EXTRA DARK
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("ITEMS:");
-        sb.Append(EXTRA_DARK_OFF);
-        sb.AppendLine();
 
         // Log item count for debugging
         _logger.LogInformation("Printing {ItemCount} items for order {OrderNumber}", order.Items?.Count ?? 0, order.OrderNumber);
@@ -222,26 +189,19 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - EXTRA DARK (NO PRICES for kitchen, same size as cashier)
-                sb.Append(EXTRA_DARK_ON);
+                // Item name and quantity - EXTRA DARK (NO PRICES for kitchen)
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
-                sb.Append(EXTRA_DARK_OFF);
 
                 // Show variation if available
                 if (!string.IsNullOrWhiteSpace(item.VariationName))
                 {
-                    sb.Append(EXTRA_DARK_ON);
-                    sb.AppendLine($"   Variation: {item.VariationName}");
-                    sb.Append(EXTRA_DARK_OFF);
+                    sb.AppendLine($"   - {item.VariationName}");
                 }
 
                 // Show special instructions
                 if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
                 {
-                    // Item notes - EXTRA DARK for visibility
-                    sb.Append(EXTRA_DARK_ON);
                     sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
-                    sb.Append(EXTRA_DARK_OFF);
                 }
                 sb.AppendLine();
             }
@@ -253,35 +213,7 @@ public class OrderPrintService
             sb.AppendLine("(No items in order)");
         }
 
-        // Order notes - EXTRA DARK for important information (same size as cashier)
-        if (!string.IsNullOrWhiteSpace(order.Notes))
-        {
-            sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
-            sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("ORDER NOTES:");
-            sb.AppendLine(order.Notes);
-            sb.Append(EXTRA_DARK_OFF);
-            sb.AppendLine();
-        }
-
-        // Delivery address for delivery orders (same size as cashier)
-        if (order.Type == "Delivery" && !string.IsNullOrWhiteSpace(order.DeliveryAddress))
-        {
-            sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
-            sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("DELIVERY ADDRESS:");
-            sb.AppendLine(order.DeliveryAddress);
-            sb.Append(EXTRA_DARK_OFF);
-            sb.AppendLine();
-        }
-
-        // Footer - EXTRA DARK for urgent message (same size as cashier)
-        sb.AppendLine(new string('=', paperWidth == 80 ? 48 : 32));
-        sb.Append(ESC_ALIGN_CENTER);
-        sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("PREPARE IMMEDIATELY");
         sb.Append(EXTRA_DARK_OFF);
-        sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine();
 
