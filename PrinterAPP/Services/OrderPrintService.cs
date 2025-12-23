@@ -292,7 +292,7 @@ public class OrderPrintService
                 }
 
                 var itemLine = $"{item.Quantity}x {itemName}";
-                var price = $"${item.ItemTotal:F2}";
+                var price = $"CHF {item.ItemTotal:F2}";
                 var spacing = paperWidth == 80 ? 48 : 32;
                 var dots = spacing - itemLine.Length - price.Length;
 
@@ -318,26 +318,26 @@ public class OrderPrintService
 
         // Subtotal, Tax, Discount, Delivery Fee, Tip - EXTRA DARK
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Subtotal: ${order.SubTotal:F2}");
+        sb.AppendLine($"Subtotal: CHF {order.SubTotal:F2}");
 
         if (order.Tax > 0)
         {
-            sb.AppendLine($"Tax: ${order.Tax:F2}");
+            sb.AppendLine($"Tax: CHF {order.Tax:F2}");
         }
 
         if (order.Discount > 0)
         {
-            sb.AppendLine($"Discount ({order.DiscountPercentage}%): -${order.Discount:F2}");
+            sb.AppendLine($"Discount ({order.DiscountPercentage}%): -CHF {order.Discount:F2}");
         }
 
         if (order.DeliveryFee > 0)
         {
-            sb.AppendLine($"Delivery Fee: ${order.DeliveryFee:F2}");
+            sb.AppendLine($"Delivery Fee: CHF {order.DeliveryFee:F2}");
         }
 
         if (order.Tip > 0)
         {
-            sb.AppendLine($"Tip: ${order.Tip:F2}");
+            sb.AppendLine($"Tip: CHF {order.Tip:F2}");
         }
 
         sb.Append(EXTRA_DARK_OFF);
@@ -346,7 +346,7 @@ public class OrderPrintService
         // Total - EXTRA DARK, Bold and larger for maximum visibility
         sb.Append(ESC_DOUBLE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"TOTAL: ${order.Total:F2}");
+        sb.AppendLine($"TOTAL: CHF {order.Total:F2}");
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
@@ -358,7 +358,7 @@ public class OrderPrintService
             sb.AppendLine("PAYMENT:");
             foreach (var payment in order.Payments)
             {
-                sb.AppendLine($"{payment.PaymentMethod}: ${payment.Amount:F2}");
+                sb.AppendLine($"{payment.PaymentMethod}: CHF {payment.Amount:F2}");
             }
             sb.Append(EXTRA_DARK_OFF);
             sb.AppendLine();
