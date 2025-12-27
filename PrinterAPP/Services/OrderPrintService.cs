@@ -24,7 +24,7 @@ public class OrderPrintService
     private const string ESC_CUT = "\x1D\x56\x00"; // Full cut
     private const string ESC_PARTIAL_CUT = "\x1D\x56\x01"; // Partial cut
     private const string ESC_FEED_AND_CUT = "\x1B\x64\x03"; // Feed 3 lines and cut
-    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x09"; // Set Turkish code page (PC857)
+    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x10"; // Set Turkish code page (CP1254/Windows-1254)
 
     // Combined commands for MAXIMUM darkness
     private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
@@ -157,8 +157,9 @@ public class OrderPrintService
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // Order # and Table - Normal size, EXTRA DARK
+        // Order # and Table - DOUBLE size, EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
+        sb.Append(ESC_DOUBLE_ON);
         sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order: {order.OrderNumber}");
 
@@ -172,6 +173,16 @@ public class OrderPrintService
             sb.AppendLine($"Table: N/A");
         }
         sb.Append(EXTRA_DARK_OFF);
+        sb.Append(ESC_DOUBLE_OFF);
+
+        // Customer name - normal size
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+        {
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine($"Customer: {order.CustomerName}");
+            sb.Append(EXTRA_DARK_OFF);
+        }
+
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
         // Log item count for debugging
