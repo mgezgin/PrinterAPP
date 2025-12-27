@@ -44,6 +44,7 @@ public class OrderItem
     public decimal UnitPrice { get; set; }
     public decimal ItemTotal { get; set; }
     public string? SpecialInstructions { get; set; }
+    public string? KitchenType { get; set; } // e.g., "FrontKitchen", "BackKitchen", etc.
 }
 
 public class Payment

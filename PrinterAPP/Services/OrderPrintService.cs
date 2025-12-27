@@ -108,35 +108,81 @@ public class OrderPrintService
                 return false;
             }
 
-            string content = printerType == PrinterType.Kitchen
-                ? FormatKitchenReceipt(order, config, paperWidth)
-                : FormatCashierReceipt(order, config, paperWidth);
-
-            // Log print request with full content
-            _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
+            // Check if order has FrontKitchen items
+            bool hasFrontKitchenItems = order.Items?.Any(item =>
+                string.Equals(item.KitchenType, "FrontKitchen", StringComparison.OrdinalIgnoreCase)) ?? false;
 
             bool success = true;
-            for (int i = 0; i < copies; i++)
-            {
-                var result = await PrintRawContentAsync(printerName, content);
-                success = success && result;
 
-                if (i < copies - 1)
+            if (printerType == PrinterType.Cashier && hasFrontKitchenItems)
+            {
+                // For cashier printer with FrontKitchen items, print TWICE:
+                // 1. Kitchen format (simplified)
+                // 2. Cashier format (full receipt with prices)
+
+                _logger.LogInformation("Order #{OrderNumber} contains FrontKitchen items - printing kitchen format + cashier format to cashier printer",
+                    order.OrderNumber);
+
+                // First print: Kitchen format
+                string kitchenContent = FormatKitchenReceipt(order, config, paperWidth);
+                _requestLogService.LogPrintRequest(printerType.ToString() + " (Kitchen Format)", orderNumForLog, printerName, kitchenContent);
+
+                var kitchenResult = await PrintRawContentAsync(printerName, kitchenContent);
+                success = success && kitchenResult;
+
+                await Task.Delay(500, cancellationToken); // Delay between formats
+
+                // Second print: Cashier format
+                string cashierContent = FormatCashierReceipt(order, config, paperWidth);
+                _requestLogService.LogPrintRequest(printerType.ToString() + " (Cashier Format)", orderNumForLog, printerName, cashierContent);
+
+                var cashierResult = await PrintRawContentAsync(printerName, cashierContent);
+                success = success && cashierResult;
+
+                // Log print response
+                if (success)
                 {
-                    await Task.Delay(500, cancellationToken); // Small delay between copies
+                    _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer (kitchen format + cashier format)",
+                        order.OrderNumber, printerType);
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, "Printed kitchen format + cashier format");
                 }
-            }
-
-            // Log print response
-            if (success)
-            {
-                _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
-                    order.OrderNumber, printerType, copies);
-                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
+                else
+                {
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
+                }
             }
             else
             {
-                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
+                // Normal printing (kitchen printer or cashier without FrontKitchen items)
+                string content = printerType == PrinterType.Kitchen
+                    ? FormatKitchenReceipt(order, config, paperWidth)
+                    : FormatCashierReceipt(order, config, paperWidth);
+
+                // Log print request with full content
+                _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
+
+                for (int i = 0; i < copies; i++)
+                {
+                    var result = await PrintRawContentAsync(printerName, content);
+                    success = success && result;
+
+                    if (i < copies - 1)
+                    {
+                        await Task.Delay(500, cancellationToken); // Small delay between copies
+                    }
+                }
+
+                // Log print response
+                if (success)
+                {
+                    _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
+                        order.OrderNumber, printerType, copies);
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
+                }
+                else
+                {
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
+                }
             }
 
             return success;
