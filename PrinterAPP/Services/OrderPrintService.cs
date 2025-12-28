@@ -24,7 +24,7 @@ public class OrderPrintService
     private const string ESC_CUT = "\x1D\x56\x00"; // Full cut
     private const string ESC_PARTIAL_CUT = "\x1D\x56\x01"; // Partial cut
     private const string ESC_FEED_AND_CUT = "\x1B\x64\x03"; // Feed 3 lines and cut
-    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x10"; // Set Turkish code page (CP1254/Windows-1254)
+    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x12"; // Set ISO-8859-9/Latin-5 code page (supports Turkish + Western European)
 
     // Combined commands for MAXIMUM darkness
     private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
@@ -467,9 +467,9 @@ public class OrderPrintService
     private bool PrintToWindowsPrinter(string printerName, string content)
     {
 #if WINDOWS
-        // Use Windows-1254 (Turkish) encoding for proper Turkish character support
+        // Use ISO-8859-9 (Latin-5) encoding for Turkish + Western European character support
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        var encoding = Encoding.GetEncoding(1254); // Windows-1254 Turkish encoding
+        var encoding = Encoding.GetEncoding(28599); // ISO-8859-9 (Latin-5) - supports Turkish ç,ğ,ı,ö,ş,ü AND Western European è,é,à,ò
         var bytes = encoding.GetBytes(content);
 
         var docInfo = new DOCINFOA
