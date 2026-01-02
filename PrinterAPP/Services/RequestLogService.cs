@@ -82,6 +82,12 @@ public class RequestLogService
         AddLogEntry(entry);
     }
 
+    public void LogWarning(string operation, string message, string? details = null, string? source = null)
+    {
+        var entry = CreateLogEntry(LogType.Warning, operation, $"Warning: {message}", details ?? string.Empty, source ?? "General");
+        AddLogEntry(entry);
+    }
+
     private LogEntry CreateLogEntry(LogType type, string operation, string message, string details, string source = "General")
     {
         return new LogEntry
@@ -140,7 +146,8 @@ public enum LogType
     PrintRequest,
     PrintSuccess,
     PrintError,
-    Error
+    Error,
+    Warning
 }
 
 public class LogEntry : INotifyPropertyChanged
@@ -273,6 +280,7 @@ public class LogEntry : INotifyPropertyChanged
         LogType.PrintSuccess => "✅",
         LogType.PrintError => "❌",
         LogType.Error => "⚠️",
+        LogType.Warning => "⚡",
         _ => "📝"
     };
 
@@ -284,6 +292,7 @@ public class LogEntry : INotifyPropertyChanged
         LogType.PrintSuccess => Colors.Green,
         LogType.PrintError => Colors.Red,
         LogType.Error => Colors.DarkRed,
+        LogType.Warning => Colors.DarkOrange,
         _ => Colors.Gray
     };
 

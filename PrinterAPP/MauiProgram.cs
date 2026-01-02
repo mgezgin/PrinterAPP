@@ -31,6 +31,8 @@ namespace PrinterAPP
             builder.Services.AddSingleton<MainPage>();
             builder.Services.AddSingleton<OrderManagementPage>();
             builder.Services.AddSingleton<LogsPage>();
+            builder.Services.AddSingleton<ErrorLogsPage>();
+            builder.Services.AddSingleton<WarningLogsPage>();
 
             return builder.Build();
         }
