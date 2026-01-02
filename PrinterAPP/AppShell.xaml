@@ -24,6 +24,18 @@
             Icon="dotnet_bot.png"
             ContentTemplate="{DataTemplate local:LogsPage}"
             Route="LogsPage" />
+
+        <ShellContent
+            Title="Errors"
+            Icon="dotnet_bot.png"
+            ContentTemplate="{DataTemplate local:ErrorLogsPage}"
+            Route="ErrorLogsPage" />
+
+        <ShellContent
+            Title="Warnings"
+            Icon="dotnet_bot.png"
+            ContentTemplate="{DataTemplate local:WarningLogsPage}"
+            Route="WarningLogsPage" />
     </TabBar>
 
 </Shell>
