@@ -13,6 +13,11 @@ public class EventStreamingService : IEventStreamingService
     private CancellationTokenSource? _cancellationTokenSource;
     private Task? _kitchenListeningTask;
     private bool _isListening;
+    
+    // Track processed order IDs to prevent duplicate display/print (with timestamp for cleanup)
+    private readonly Dictionary<string, DateTime> _processedOrders = new();
+    private readonly object _processedOrdersLock = new();
+    private const int MaxProcessedOrdersAge = 3600; // 1 hour in seconds
 
     public event EventHandler<OrderEvent>? OrderReceived;
     public event EventHandler<string>? ConnectionStatusChanged;
@@ -154,12 +159,8 @@ public class EventStreamingService : IEventStreamingService
                 _logger.LogInformation("Connected to SSE stream: {Endpoint}", endpoint);
 
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, bufferSize: 256, leaveOpen: true);
                 
-                // CRITICAL FIX: Don't use StreamReader - it has internal buffering that delays SSE events!
-                // Instead, read byte-by-byte to ensure events are processed immediately as they arrive.
-                // This is essential for real-time streaming on Windows where network buffering differs.
-                var buffer = new byte[1];
-                var lineBuilder = new StringBuilder();
                 string? eventType = null;
                 var dataBuilder = new StringBuilder();
 
@@ -167,67 +168,29 @@ public class EventStreamingService : IEventStreamingService
                 retryDelay = TimeSpan.FromSeconds(5);
                 lastMessageReceived = DateTime.UtcNow;
 
-                while (!cancellationToken.IsCancellationRequested)
+                // Start background task to check for connection timeout
+                var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                _ = Task.Run(async () => 
                 {
-                    // Check for connection timeout BEFORE reading
-                    // (45 seconds = 3 missed heartbeats at 15s intervals)
-                    var timeSinceLastMessage = DateTime.UtcNow - lastMessageReceived;
-                    if (timeSinceLastMessage.TotalSeconds > 45)
+                    while (!timeoutCts.Token.IsCancellationRequested)
                     {
-                        _logger.LogWarning("Connection timeout - no messages for {Seconds}s", timeSinceLastMessage.TotalSeconds);
-                        throw new TimeoutException($"No messages received for {timeSinceLastMessage.TotalSeconds} seconds");
-                    }
-
-                    // Read one byte at a time for minimal latency
-                    int bytesRead;
-                    try
-                    {
-                        // Use ConfigureAwait(false) and a simple timeout approach
-                        var readTask = stream.ReadAsync(buffer, 0, 1, cancellationToken);
-                        var completedTask = await Task.WhenAny(readTask, Task.Delay(5000, cancellationToken));
-                        
-                        if (completedTask != readTask)
+                        await Task.Delay(5000, timeoutCts.Token).ConfigureAwait(false);
+                        var timeSinceLastMessage = DateTime.UtcNow - lastMessageReceived;
+                        if (timeSinceLastMessage.TotalSeconds > 45)
                         {
-                            // Timeout - continue loop to check connection timeout
-                            continue;
+                            _logger.LogWarning("Connection timeout - no messages for {Seconds}s, cancelling...", timeSinceLastMessage.TotalSeconds);
+                            timeoutCts.Cancel();
                         }
-                        
-                        bytesRead = await readTask;
                     }
-                    catch (ObjectDisposedException)
-                    {
-                        // Stream was disposed - connection closed, break and reconnect
-                        _logger.LogWarning("Stream disposed - connection closed");
-                        break;
-                    }
-                    catch (IOException ex) when (ex.InnerException is ObjectDisposedException)
-                    {
-                        // Underlying stream disposed
-                        _logger.LogWarning("Underlying stream disposed - connection closed");
-                        break;
-                    }
-                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-                    {
-                        // Read timeout - continue loop to check connection timeout
-                        continue;
-                    }
+                }, timeoutCts.Token);
 
-                    if (bytesRead == 0)
+                try
+                {
+                    string? line;
+                    while ((line = await reader.ReadLineAsync(timeoutCts.Token)) != null)
                     {
-                        _logger.LogWarning("SSE stream ended - server closed connection");
-                        break;
-                    }
-
-                    // Update last message time for any data received
-                    lastMessageReceived = DateTime.UtcNow;
-
-                    var c = (char)buffer[0];
-
-                    if (c == '\n')
-                    {
-                        // Complete line received - process it immediately
-                        var line = lineBuilder.ToString();
-                        lineBuilder.Clear();
+                        // Update last message time for any data received
+                        lastMessageReceived = DateTime.UtcNow;
 
                         if (line.StartsWith("event:"))
                         {
@@ -254,11 +217,11 @@ public class EventStreamingService : IEventStreamingService
                         }
                         else if (string.IsNullOrEmpty(line))
                         {
-                            // Empty line indicates end of message - process event immediately
+                            // Empty line indicates end of message - process event
                             if (dataBuilder.Length > 0 && eventType != "heartbeat")
                             {
                                 var data = dataBuilder.ToString().Trim();
-                                _logger.LogInformation("Processing SSE event immediately: {EventType}", eventType);
+                                _logger.LogInformation("Processing SSE event: {EventType}", eventType);
                                 await ProcessEventAsync(eventType ?? "message", data, endpoint, cancellationToken);
                             }
 
@@ -267,10 +230,11 @@ public class EventStreamingService : IEventStreamingService
                             eventType = null;
                         }
                     }
-                    else if (c != '\r')  // Ignore carriage return
-                    {
-                        lineBuilder.Append(c);
-                    }
+                }
+                finally
+                {
+                    timeoutCts.Cancel();
+                    timeoutCts.Dispose();
                 }
 
                 _logger.LogWarning("SSE stream ended for {Endpoint}", endpoint);
@@ -334,14 +298,36 @@ public class EventStreamingService : IEventStreamingService
 
                     if (orderEvent?.Order != null)
                     {
-                        // Log order details for debugging
-                        _logger.LogInformation("Received order {OrderNumber} with {ItemCount} items",
-                            orderEvent.Order.OrderNumber,
-                            orderEvent.Order.Items?.Count ?? 0);
-
-                        if (orderEvent.Order.Items != null && orderEvent.Order.Items.Any())
+                        var order = orderEvent.Order;
+                        
+                        // FILTER: Only process orders with Confirmed status
+                        if (!string.Equals(order.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
                         {
-                            foreach (var item in orderEvent.Order.Items)
+                            _logger.LogDebug("Skipping order {OrderNumber} - status is {Status}, not Confirmed", 
+                                order.OrderNumber, order.Status);
+                            return;
+                        }
+                        
+                        // DEDUPLICATION: Check if we've already processed this order
+                        var orderKey = order.OrderNumber;
+                        if (IsOrderAlreadyProcessed(orderKey))
+                        {
+                            _logger.LogInformation("Skipping duplicate order {OrderNumber}", order.OrderNumber);
+                            return;
+                        }
+                        
+                        // Mark order as processed
+                        MarkOrderAsProcessed(orderKey);
+                        
+                        // Log order details for debugging
+                        _logger.LogInformation("Received order {OrderNumber} with {ItemCount} items (Status: {Status})",
+                            order.OrderNumber,
+                            order.Items?.Count ?? 0,
+                            order.Status);
+
+                        if (order.Items != null && order.Items.Any())
+                        {
+                            foreach (var item in order.Items)
                             {
                                 _logger.LogInformation("  - Item: {Quantity}x {ProductName}",
                                     item.Quantity, item.ProductName);
@@ -349,14 +335,14 @@ public class EventStreamingService : IEventStreamingService
                         }
                         else
                         {
-                            _logger.LogWarning("Order {OrderNumber} has no items!", orderEvent.Order.OrderNumber);
+                            _logger.LogWarning("Order {OrderNumber} has no items!", order.OrderNumber);
                         }
 
                         // Log parsed order with full JSON data
                         _requestLogService.LogOrderReceived(
-                            int.TryParse(orderEvent.Order.OrderNumber.Split('/').Last(), out var orderNum) ? orderNum : 0,
-                            orderEvent.Order.TableNumber,
-                            orderEvent.Order.Total,
+                            int.TryParse(order.OrderNumber.Split('/').Last(), out var orderNum) ? orderNum : 0,
+                            order.TableNumber,
+                            order.Total,
                             data,
                             "Service");
 
@@ -375,6 +361,25 @@ public class EventStreamingService : IEventStreamingService
 
                     if (order != null)
                     {
+                        // FILTER: Only process orders with Confirmed status
+                        if (!string.Equals(order.Status, "Confirmed", StringComparison.OrdinalIgnoreCase))
+                        {
+                            _logger.LogDebug("Skipping order {OrderNumber} - status is {Status}, not Confirmed", 
+                                order.OrderNumber, order.Status);
+                            return;
+                        }
+                        
+                        // DEDUPLICATION: Check if we've already processed this order
+                        var orderKey = order.OrderNumber;
+                        if (IsOrderAlreadyProcessed(orderKey))
+                        {
+                            _logger.LogInformation("Skipping duplicate order {OrderNumber}", order.OrderNumber);
+                            return;
+                        }
+                        
+                        // Mark order as processed
+                        MarkOrderAsProcessed(orderKey);
+                        
                         // Log parsed order with full JSON data
                         _requestLogService.LogOrderReceived(
                             int.TryParse(order.OrderNumber.Split('/').Last(), out var orderNum) ? orderNum : 0,
@@ -416,5 +421,52 @@ public class EventStreamingService : IEventStreamingService
     protected virtual void OnConnectionStatusChanged(string status)
     {
         ConnectionStatusChanged?.Invoke(this, status);
+    }
+    
+    /// <summary>
+    /// Check if an order has already been processed (to prevent duplicates)
+    /// </summary>
+    private bool IsOrderAlreadyProcessed(string orderNumber)
+    {
+        lock (_processedOrdersLock)
+        {
+            // Clean up old entries first
+            CleanupOldProcessedOrders();
+            
+            return _processedOrders.ContainsKey(orderNumber);
+        }
+    }
+    
+    /// <summary>
+    /// Mark an order as processed
+    /// </summary>
+    private void MarkOrderAsProcessed(string orderNumber)
+    {
+        lock (_processedOrdersLock)
+        {
+            _processedOrders[orderNumber] = DateTime.UtcNow;
+        }
+    }
+    
+    /// <summary>
+    /// Clean up processed orders older than MaxProcessedOrdersAge
+    /// </summary>
+    private void CleanupOldProcessedOrders()
+    {
+        var cutoff = DateTime.UtcNow.AddSeconds(-MaxProcessedOrdersAge);
+        var oldOrders = _processedOrders
+            .Where(kvp => kvp.Value < cutoff)
+            .Select(kvp => kvp.Key)
+            .ToList();
+        
+        foreach (var orderNumber in oldOrders)
+        {
+            _processedOrders.Remove(orderNumber);
+        }
+        
+        if (oldOrders.Count > 0)
+        {
+            _logger.LogDebug("Cleaned up {Count} old processed order records", oldOrders.Count);
+        }
     }
 }
