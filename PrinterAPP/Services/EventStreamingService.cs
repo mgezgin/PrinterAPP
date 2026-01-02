@@ -10,10 +10,8 @@ public class EventStreamingService : IEventStreamingService
     private readonly IPrinterService _printerService;
     private readonly RequestLogService _requestLogService;
     private readonly ILogger<EventStreamingService> _logger;
-    private HttpClient? _httpClient;
     private CancellationTokenSource? _cancellationTokenSource;
     private Task? _kitchenListeningTask;
-    private Task? _cashierListeningTask;
     private bool _isListening;
 
     public event EventHandler<OrderEvent>? OrderReceived;
@@ -52,18 +50,13 @@ public class EventStreamingService : IEventStreamingService
         }
 
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _httpClient = new HttpClient
-        {
-            Timeout = Timeout.InfiniteTimeSpan
-        };
-
         _isListening = true;
 
-        // Start listening to kitchen endpoint only (both printers will receive from this endpoint)
+        // Start listening to service endpoint (both printers will receive from this endpoint)
         _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "service", _cancellationTokenSource.Token);
 
-        OnConnectionStatusChanged("Connected to Kitchen SSE stream");
-        _logger.LogInformation("Started listening to Kitchen SSE stream");
+        OnConnectionStatusChanged("Connected to Service SSE stream");
+        _logger.LogInformation("Started listening to Service SSE stream");
     }
 
     public async Task StopListeningAsync()
@@ -95,12 +88,9 @@ public class EventStreamingService : IEventStreamingService
         }
         finally
         {
-            _httpClient?.Dispose();
-            _httpClient = null;
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = null;
             _kitchenListeningTask = null;
-            _cashierListeningTask = null;
 
             OnConnectionStatusChanged("Disconnected");
         }
@@ -114,13 +104,24 @@ public class EventStreamingService : IEventStreamingService
 
         while (!cancellationToken.IsCancellationRequested)
         {
+            HttpClient? httpClient = null;
+            DateTime lastMessageReceived = DateTime.UtcNow;
+
             try
             {
                 _logger.LogInformation("Connecting to SSE stream: {Url}", url);
                 OnConnectionStatusChanged($"Connecting to {endpoint}...");
 
+                // Create new HttpClient for each connection attempt
+                httpClient = new HttpClient
+                {
+                    Timeout = Timeout.InfiniteTimeSpan
+                };
+
                 using var request = new HttpRequestMessage(HttpMethod.Get, url);
                 request.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("text/event-stream"));
+                request.Headers.Connection.Add("keep-alive");
+                request.Headers.CacheControl = new System.Net.Http.Headers.CacheControlHeaderValue { NoCache = true };
 
                 // Capture request details
                 var requestHeaders = new Dictionary<string, string>();
@@ -132,7 +133,7 @@ public class EventStreamingService : IEventStreamingService
                 // Log SSE connection with full request details
                 _requestLogService.LogSSEConnection(endpoint, "Connecting...", url, requestHeaders);
 
-                using var response = await _httpClient!.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 // Capture response details
@@ -155,8 +156,9 @@ public class EventStreamingService : IEventStreamingService
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
                 using var reader = new StreamReader(stream, Encoding.UTF8);
 
-                // Reset retry delay on successful connection
+                // Reset retry delay and last message time on successful connection
                 retryDelay = TimeSpan.FromSeconds(5);
+                lastMessageReceived = DateTime.UtcNow;
 
                 string? line;
                 string? eventType = null;
@@ -167,30 +169,55 @@ public class EventStreamingService : IEventStreamingService
                     if (cancellationToken.IsCancellationRequested)
                         break;
 
+                    // Update last message time for ANY line received
+                    lastMessageReceived = DateTime.UtcNow;
+
+                    // Check for connection timeout (45 seconds = 3 missed heartbeats at 15s intervals)
+                    var timeSinceLastMessage = DateTime.UtcNow - lastMessageReceived;
+                    if (timeSinceLastMessage.TotalSeconds > 45)
+                    {
+                        _logger.LogWarning("Connection timeout - no messages for {Seconds}s", timeSinceLastMessage.TotalSeconds);
+                        throw new TimeoutException($"No messages received for {timeSinceLastMessage.TotalSeconds} seconds");
+                    }
+
                     // SSE format: lines starting with "event:", "data:", or empty line (message delimiter)
                     if (line.StartsWith("event:"))
                     {
                         eventType = line.Substring(6).Trim();
+
+                        // Log heartbeat events but don't process them further
+                        if (eventType == "heartbeat")
+                        {
+                            _logger.LogDebug("Heartbeat received from {Endpoint}", endpoint);
+                            // Continue to read the heartbeat data, but won't process it
+                        }
                     }
                     else if (line.StartsWith("data:"))
                     {
-                        dataBuilder.AppendLine(line.Substring(5).Trim());
+                        // Only collect data if it's not a heartbeat
+                        if (eventType != "heartbeat")
+                        {
+                            dataBuilder.AppendLine(line.Substring(5).Trim());
+                        }
                     }
                     else if (line.StartsWith(":"))
                     {
-                        // Comment line (heartbeat) - ignore
+                        // SSE comment line - also a form of heartbeat
+                        _logger.LogDebug("Comment/heartbeat received from {Endpoint}", endpoint);
                         continue;
                     }
                     else if (string.IsNullOrWhiteSpace(line))
                     {
                         // Empty line indicates end of message
-                        if (dataBuilder.Length > 0)
+                        if (dataBuilder.Length > 0 && eventType != "heartbeat")
                         {
                             var data = dataBuilder.ToString().Trim();
                             await ProcessEventAsync(eventType ?? "message", data, endpoint, cancellationToken);
-                            dataBuilder.Clear();
-                            eventType = null;
                         }
+
+                        // Reset for next message
+                        dataBuilder.Clear();
+                        eventType = null;
                     }
                 }
 
@@ -215,6 +242,10 @@ public class EventStreamingService : IEventStreamingService
                     retryDelay = TimeSpan.FromSeconds(Math.Min(retryDelay.TotalSeconds * 2, maxRetryDelay));
                 }
             }
+            finally
+            {
+                httpClient?.Dispose();
+            }
         }
     }
 
@@ -229,13 +260,14 @@ public class EventStreamingService : IEventStreamingService
             if (eventType == "connected")
             {
                 _logger.LogInformation("Received connection confirmation from {Source}", sourceEndpoint);
-                _requestLogService.LogSSEEvent("connected", $"Connection confirmed from {sourceEndpoint}", data, "Kitchen");
+                _requestLogService.LogSSEEvent("connected", $"Connection confirmed from {sourceEndpoint}", data, "Service");
                 return;
             }
 
             // Parse order event - handle both old format and new format
             if (eventType == "order-created" || eventType == "order-updated" || eventType == "order_created" ||
-                eventType == "order_updated" || eventType == "order" || eventType == "message")
+                eventType == "order_updated" || eventType == "order" || eventType == "message" ||
+                eventType == "order-status-changed" || eventType == "order-ready" || eventType == "order-completed")
             {
                 // Log raw event with truncated data for display
                 var truncatedData = data.Length > 100 ? data.Substring(0, 100) + "..." : data;
@@ -274,7 +306,7 @@ public class EventStreamingService : IEventStreamingService
                             orderEvent.Order.TableNumber,
                             orderEvent.Order.Total,
                             data,
-                            "Kitchen");
+                            "Service");
 
                         // Notify subscribers
                         OnOrderReceived(orderEvent);
@@ -297,7 +329,7 @@ public class EventStreamingService : IEventStreamingService
                             order.TableNumber,
                             order.Total,
                             data,
-                            "Kitchen");
+                            "Service");
 
                         var orderEvent = new OrderEvent
                         {
