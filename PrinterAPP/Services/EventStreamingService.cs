@@ -154,22 +154,22 @@ public class EventStreamingService : IEventStreamingService
                 _logger.LogInformation("Connected to SSE stream: {Endpoint}", endpoint);
 
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                using var reader = new StreamReader(stream, Encoding.UTF8);
+                
+                // CRITICAL FIX: Don't use StreamReader - it has internal buffering that delays SSE events!
+                // Instead, read byte-by-byte to ensure events are processed immediately as they arrive.
+                // This is essential for real-time streaming on Windows where network buffering differs.
+                var buffer = new byte[1];
+                var lineBuilder = new StringBuilder();
+                string? eventType = null;
+                var dataBuilder = new StringBuilder();
 
                 // Reset retry delay and last message time on successful connection
                 retryDelay = TimeSpan.FromSeconds(5);
                 lastMessageReceived = DateTime.UtcNow;
 
-                string? line;
-                string? eventType = null;
-                var dataBuilder = new StringBuilder();
-
-                while ((line = await reader.ReadLineAsync(cancellationToken)) != null)
+                while (!cancellationToken.IsCancellationRequested)
                 {
-                    if (cancellationToken.IsCancellationRequested)
-                        break;
-
-                    // Check for connection timeout BEFORE updating last message time
+                    // Check for connection timeout BEFORE reading
                     // (45 seconds = 3 missed heartbeats at 15s intervals)
                     var timeSinceLastMessage = DateTime.UtcNow - lastMessageReceived;
                     if (timeSinceLastMessage.TotalSeconds > 45)
@@ -178,47 +178,79 @@ public class EventStreamingService : IEventStreamingService
                         throw new TimeoutException($"No messages received for {timeSinceLastMessage.TotalSeconds} seconds");
                     }
 
-                    // Update last message time for ANY line received
-                    lastMessageReceived = DateTime.UtcNow;
-
-                    // SSE format: lines starting with "event:", "data:", or empty line (message delimiter)
-                    if (line.StartsWith("event:"))
+                    // Read one byte at a time for minimal latency
+                    int bytesRead;
+                    try
                     {
-                        eventType = line.Substring(6).Trim();
-
-                        // Log heartbeat events but don't process them further
-                        if (eventType == "heartbeat")
-                        {
-                            _logger.LogDebug("Heartbeat received from {Endpoint}", endpoint);
-                            // Continue to read the heartbeat data, but won't process it
-                        }
+                        // Use a timeout to periodically check for connection timeout
+                        using var readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        readCts.CancelAfter(TimeSpan.FromSeconds(5));
+                        bytesRead = await stream.ReadAsync(buffer, 0, 1, readCts.Token);
                     }
-                    else if (line.StartsWith("data:"))
+                    catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                     {
-                        // Only collect data if it's not a heartbeat
-                        if (eventType != "heartbeat")
-                        {
-                            dataBuilder.AppendLine(line.Substring(5).Trim());
-                        }
-                    }
-                    else if (line.StartsWith(":"))
-                    {
-                        // SSE comment line - also a form of heartbeat
-                        _logger.LogDebug("Comment/heartbeat received from {Endpoint}", endpoint);
+                        // Read timeout - continue loop to check connection timeout
                         continue;
                     }
-                    else if (string.IsNullOrWhiteSpace(line))
-                    {
-                        // Empty line indicates end of message
-                        if (dataBuilder.Length > 0 && eventType != "heartbeat")
-                        {
-                            var data = dataBuilder.ToString().Trim();
-                            await ProcessEventAsync(eventType ?? "message", data, endpoint, cancellationToken);
-                        }
 
-                        // Reset for next message
-                        dataBuilder.Clear();
-                        eventType = null;
+                    if (bytesRead == 0)
+                    {
+                        _logger.LogWarning("SSE stream ended - server closed connection");
+                        break;
+                    }
+
+                    // Update last message time for any data received
+                    lastMessageReceived = DateTime.UtcNow;
+
+                    var c = (char)buffer[0];
+
+                    if (c == '\n')
+                    {
+                        // Complete line received - process it immediately
+                        var line = lineBuilder.ToString();
+                        lineBuilder.Clear();
+
+                        if (line.StartsWith("event:"))
+                        {
+                            eventType = line.Substring(6).Trim();
+
+                            // Log heartbeat events but don't process them further
+                            if (eventType == "heartbeat")
+                            {
+                                _logger.LogDebug("Heartbeat received from {Endpoint}", endpoint);
+                            }
+                        }
+                        else if (line.StartsWith("data:"))
+                        {
+                            // Only collect data if it's not a heartbeat
+                            if (eventType != "heartbeat")
+                            {
+                                dataBuilder.AppendLine(line.Substring(5).Trim());
+                            }
+                        }
+                        else if (line.StartsWith(":"))
+                        {
+                            // SSE comment line - also a form of heartbeat
+                            _logger.LogDebug("Comment/heartbeat received from {Endpoint}", endpoint);
+                        }
+                        else if (string.IsNullOrEmpty(line))
+                        {
+                            // Empty line indicates end of message - process event immediately
+                            if (dataBuilder.Length > 0 && eventType != "heartbeat")
+                            {
+                                var data = dataBuilder.ToString().Trim();
+                                _logger.LogInformation("Processing SSE event immediately: {EventType}", eventType);
+                                await ProcessEventAsync(eventType ?? "message", data, endpoint, cancellationToken);
+                            }
+
+                            // Reset for next message
+                            dataBuilder.Clear();
+                            eventType = null;
+                        }
+                    }
+                    else if (c != '\r')  // Ignore carriage return
+                    {
+                        lineBuilder.Append(c);
                     }
                 }
 
