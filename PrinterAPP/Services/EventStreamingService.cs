@@ -182,10 +182,29 @@ public class EventStreamingService : IEventStreamingService
                     int bytesRead;
                     try
                     {
-                        // Use a timeout to periodically check for connection timeout
-                        using var readCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                        readCts.CancelAfter(TimeSpan.FromSeconds(5));
-                        bytesRead = await stream.ReadAsync(buffer, 0, 1, readCts.Token);
+                        // Use ConfigureAwait(false) and a simple timeout approach
+                        var readTask = stream.ReadAsync(buffer, 0, 1, cancellationToken);
+                        var completedTask = await Task.WhenAny(readTask, Task.Delay(5000, cancellationToken));
+                        
+                        if (completedTask != readTask)
+                        {
+                            // Timeout - continue loop to check connection timeout
+                            continue;
+                        }
+                        
+                        bytesRead = await readTask;
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Stream was disposed - connection closed, break and reconnect
+                        _logger.LogWarning("Stream disposed - connection closed");
+                        break;
+                    }
+                    catch (IOException ex) when (ex.InnerException is ObjectDisposedException)
+                    {
+                        // Underlying stream disposed
+                        _logger.LogWarning("Underlying stream disposed - connection closed");
+                        break;
                     }
                     catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                     {
