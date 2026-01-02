@@ -73,14 +73,46 @@ public partial class MainPage : ContentPage
             CashierPrintCopiesEntry.Text = _config.CashierPrintCopies.ToString();
             CashierPaperWidthPicker.SelectedIndex = _config.CashierPaperWidth == 80 ? 0 : 1;
 
+            // Time restriction settings
+            EnableTimeRestrictionSwitch.IsToggled = _config.EnableTimeRestriction;
+            RestrictStartTimePicker.Time = _config.RestrictStartTime;
+            RestrictEndTimePicker.Time = _config.RestrictEndTime;
+
             // Load available printers
             await LoadPrintersAsync();
 
             // Update service status (Windows only)
             UpdateServiceStatus();
 
+            // Auto-start service if it was running before (Windows only)
+#if WINDOWS
+            if (_config.IsServiceRunning && !_eventStreamingService.IsListening)
+            {
+                try
+                {
+                    _logger.LogInformation("Auto-starting SSE service based on saved configuration");
+                    await _eventStreamingService.StartListeningAsync();
+                    _isServiceRunning = true;
+                    UpdateServiceStatus();
+                    StatusLabel.Text = $"Service auto-started - API: {_config.ApiBaseUrl}";
+                    StatusLabel.TextColor = Colors.Green;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to auto-start SSE service");
+                    StatusLabel.Text = "Failed to auto-start service";
+                    StatusLabel.TextColor = Colors.Orange;
+                }
+            }
+            else
+            {
+                StatusLabel.Text = $"Configuration loaded - API: {_config.ApiBaseUrl}";
+                StatusLabel.TextColor = Colors.Green;
+            }
+#else
             StatusLabel.Text = $"Configuration loaded - API: {_config.ApiBaseUrl}";
             StatusLabel.TextColor = Colors.Green;
+#endif
         }
         catch (Exception ex)
         {
@@ -446,6 +478,11 @@ public partial class MainPage : ContentPage
                 _config.CashierPrinterName = CashierPrinterPicker.SelectedItem.ToString()!.Replace(" (Default)", "").Trim();
             }
 
+            // Time restriction settings
+            _config.EnableTimeRestriction = EnableTimeRestrictionSwitch.IsToggled;
+            _config.RestrictStartTime = RestrictStartTimePicker.Time;
+            _config.RestrictEndTime = RestrictEndTimePicker.Time;
+
             // Save configuration
             _logger.LogInformation("Saving configuration with API URL: {ApiUrl}", _config.ApiBaseUrl);
             System.Diagnostics.Debug.WriteLine($"DEBUG SAVE: Saving config with API URL = {_config.ApiBaseUrl}");
@@ -576,6 +613,11 @@ public partial class MainPage : ContentPage
                 CashierAutoPrintSwitch.IsToggled = _config.CashierAutoPrint;
                 CashierPrintCopiesEntry.Text = _config.CashierPrintCopies.ToString();
                 CashierPaperWidthPicker.SelectedIndex = _config.CashierPaperWidth == 80 ? 0 : 1;
+
+                // Time restriction settings
+                EnableTimeRestrictionSwitch.IsToggled = _config.EnableTimeRestriction;
+                RestrictStartTimePicker.Time = _config.RestrictStartTime;
+                RestrictEndTimePicker.Time = _config.RestrictEndTime;
 
                 if (KitchenPrinterPicker.ItemsSource != null && KitchenPrinterPicker.ItemsSource.Cast<object>().Any())
                 {

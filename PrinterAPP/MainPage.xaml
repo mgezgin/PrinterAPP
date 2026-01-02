@@ -153,11 +153,57 @@
                 </VerticalStackLayout>
             </Frame>
 
+            <!-- Time Restriction Settings -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="⏰ Auto-Print Time Restrictions"
+                           FontSize="18"
+                           FontAttributes="Bold"/>
+
+                    <Label Text="Disable automatic printing during specific hours (manual printing always works)"
+                           FontSize="12"
+                           TextColor="Gray"
+                           Margin="0,0,0,10"/>
+
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Switch x:Name="EnableTimeRestrictionSwitch"
+                                IsToggled="False"
+                                VerticalOptions="Center"/>
+                        <Label Text="Enable time-based auto-print restrictions"
+                               Grid.Column="1"
+                               VerticalOptions="Center"
+                               Margin="10,0,0,0"/>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <VerticalStackLayout>
+                            <Label Text="Don't Auto-Print From" FontSize="14" TextColor="Gray"/>
+                            <TimePicker x:Name="RestrictStartTimePicker"
+                                        Time="12:00:00"
+                                        Format="HH:mm"/>
+                        </VerticalStackLayout>
+
+                        <VerticalStackLayout Grid.Column="1">
+                            <Label Text="Don't Auto-Print Until" FontSize="14" TextColor="Gray"/>
+                            <TimePicker x:Name="RestrictEndTimePicker"
+                                        Time="13:00:00"
+                                        Format="HH:mm"/>
+                        </VerticalStackLayout>
+                    </Grid>
+
+                    <Label Text="Example: Set 12:00 to 13:00 to disable auto-printing during lunch break. You can still print manually from Order Management page."
+                           FontSize="11"
+                           TextColor="DarkOrange"
+                           FontAttributes="Italic"
+                           Margin="0,5,0,0"/>
+                </VerticalStackLayout>
+            </Frame>
+
             <!-- Restaurant Information -->
             <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
                 <VerticalStackLayout Spacing="10">
-                    <Label Text="Restaurant Information" 
-                           FontSize="18" 
+                    <Label Text="Restaurant Information"
+                           FontSize="18"
                            FontAttributes="Bold"/>
 
                     <Label Text="Restaurant Name" FontSize="14" TextColor="Gray"/>

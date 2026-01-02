@@ -47,7 +47,7 @@ public class RequestLogService
         AddLogEntry(entry);
     }
 
-    public void LogOrderReceived(int orderId, int tableNumber, decimal total, string? orderJson = null, string? source = null)
+    public void LogOrderReceived(int orderId, int? tableNumber, decimal total, string? orderJson = null, string? source = null)
     {
         var entry = CreateLogEntry(LogType.Order, $"Order #{orderId}", $"Table {tableNumber}", $"${total:F2}", source ?? "General");
         entry.ResponseBody = orderJson;

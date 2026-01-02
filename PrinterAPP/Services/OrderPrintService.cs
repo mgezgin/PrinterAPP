@@ -24,7 +24,7 @@ public class OrderPrintService
     private const string ESC_CUT = "\x1D\x56\x00"; // Full cut
     private const string ESC_PARTIAL_CUT = "\x1D\x56\x01"; // Partial cut
     private const string ESC_FEED_AND_CUT = "\x1B\x64\x03"; // Feed 3 lines and cut
-    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x09"; // Set Turkish code page (PC857)
+    private const string ESC_CODEPAGE_TURKISH = "\x1B\x74\x09"; // Set PC857 code page (Turkish MS-DOS - supports Turkish + Western European)
 
     // Combined commands for MAXIMUM darkness
     private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
@@ -40,7 +40,7 @@ public class OrderPrintService
         _logger = logger;
     }
 
-    public async Task<bool> PrintOrderAsync(Order order, PrinterType printerType, CancellationToken cancellationToken = default)
+    public async Task<bool> PrintOrderAsync(Order order, PrinterType printerType, bool isManualPrint = false, CancellationToken cancellationToken = default)
     {
         // Extract order number for logging (parse the numeric part)
         int orderNumForLog = int.TryParse(order.OrderNumber.Split('/').Last(), out var orderNumParsed) ? orderNumParsed : 0;
@@ -69,10 +69,36 @@ public class OrderPrintService
                 paperWidth = config.CashierPaperWidth;
             }
 
-            if (!autoPrint)
+            // Check auto-print settings (only for automatic printing)
+            if (!isManualPrint && !autoPrint)
             {
                 _logger.LogInformation("Auto-print disabled for {PrinterType}", printerType);
                 return true;
+            }
+
+            // Check time restrictions (only for automatic printing)
+            if (!isManualPrint && config.EnableTimeRestriction)
+            {
+                var now = DateTime.Now.TimeOfDay;
+                bool isInRestrictedTime = false;
+
+                if (config.RestrictStartTime < config.RestrictEndTime)
+                {
+                    // Normal case: e.g., 12:00 - 13:00
+                    isInRestrictedTime = now >= config.RestrictStartTime && now < config.RestrictEndTime;
+                }
+                else
+                {
+                    // Overnight case: e.g., 23:00 - 01:00
+                    isInRestrictedTime = now >= config.RestrictStartTime || now < config.RestrictEndTime;
+                }
+
+                if (isInRestrictedTime)
+                {
+                    _logger.LogInformation("Auto-print skipped for {PrinterType} - current time {Time} is within restricted period {Start}-{End}",
+                        printerType, now.ToString(@"hh\:mm"), config.RestrictStartTime.ToString(@"hh\:mm"), config.RestrictEndTime.ToString(@"hh\:mm"));
+                    return true; // Return true to indicate no error, just skipped
+                }
             }
 
             if (string.IsNullOrWhiteSpace(printerName))
@@ -82,35 +108,81 @@ public class OrderPrintService
                 return false;
             }
 
-            string content = printerType == PrinterType.Kitchen
-                ? FormatKitchenReceipt(order, config, paperWidth)
-                : FormatCashierReceipt(order, config, paperWidth);
-
-            // Log print request with full content
-            _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
+            // Check if order has FrontKitchen items
+            bool hasFrontKitchenItems = order.Items?.Any(item =>
+                string.Equals(item.KitchenType, "FrontKitchen", StringComparison.OrdinalIgnoreCase)) ?? false;
 
             bool success = true;
-            for (int i = 0; i < copies; i++)
-            {
-                var result = await PrintRawContentAsync(printerName, content);
-                success = success && result;
 
-                if (i < copies - 1)
+            if (printerType == PrinterType.Cashier && hasFrontKitchenItems)
+            {
+                // For cashier printer with FrontKitchen items, print TWICE:
+                // 1. Kitchen format (simplified)
+                // 2. Cashier format (full receipt with prices)
+
+                _logger.LogInformation("Order #{OrderNumber} contains FrontKitchen items - printing kitchen format + cashier format to cashier printer",
+                    order.OrderNumber);
+
+                // First print: Kitchen format
+                string kitchenContent = FormatKitchenReceipt(order, config, paperWidth);
+                _requestLogService.LogPrintRequest(printerType.ToString() + " (Kitchen Format)", orderNumForLog, printerName, kitchenContent);
+
+                var kitchenResult = await PrintRawContentAsync(printerName, kitchenContent);
+                success = success && kitchenResult;
+
+                await Task.Delay(500, cancellationToken); // Delay between formats
+
+                // Second print: Cashier format
+                string cashierContent = FormatCashierReceipt(order, config, paperWidth);
+                _requestLogService.LogPrintRequest(printerType.ToString() + " (Cashier Format)", orderNumForLog, printerName, cashierContent);
+
+                var cashierResult = await PrintRawContentAsync(printerName, cashierContent);
+                success = success && cashierResult;
+
+                // Log print response
+                if (success)
                 {
-                    await Task.Delay(500, cancellationToken); // Small delay between copies
+                    _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer (kitchen format + cashier format)",
+                        order.OrderNumber, printerType);
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, "Printed kitchen format + cashier format");
                 }
-            }
-
-            // Log print response
-            if (success)
-            {
-                _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
-                    order.OrderNumber, printerType, copies);
-                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
+                else
+                {
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
+                }
             }
             else
             {
-                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
+                // Normal printing (kitchen printer or cashier without FrontKitchen items)
+                string content = printerType == PrinterType.Kitchen
+                    ? FormatKitchenReceipt(order, config, paperWidth)
+                    : FormatCashierReceipt(order, config, paperWidth);
+
+                // Log print request with full content
+                _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
+
+                for (int i = 0; i < copies; i++)
+                {
+                    var result = await PrintRawContentAsync(printerName, content);
+                    success = success && result;
+
+                    if (i < copies - 1)
+                    {
+                        await Task.Delay(500, cancellationToken); // Small delay between copies
+                    }
+                }
+
+                // Log print response
+                if (success)
+                {
+                    _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
+                        order.OrderNumber, printerType, copies);
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
+                }
+                else
+                {
+                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
+                }
             }
 
             return success;
@@ -131,44 +203,33 @@ public class OrderPrintService
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // Header - EXTRA DARK, Bold, and Large Size for maximum visibility
-        sb.Append(ESC_ALIGN_CENTER);
-        sb.Append(ESC_LARGE_ON);
-        sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"=== KITCHEN ORDER ===");
-        sb.Append(ESC_DOUBLE_OFF);
-        sb.Append(EXTRA_DARK_OFF);
-        sb.AppendLine();
-
-        // Order info - EXTRA DARK and larger font for maximum visibility
+        // Order # and Table - DOUBLE size, EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
-        sb.Append(ESC_LARGE_ON);
+        sb.Append(ESC_DOUBLE_ON);
         sb.Append(EXTRA_DARK_ON);
+        sb.AppendLine($"Order: {order.OrderNumber}");
 
-        // Convert to local time if needed
-        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
-            ? order.OrderDate.ToLocalTime()
-            : order.OrderDate;
-
-        sb.AppendLine($"Order #: {order.OrderNumber}");
-        sb.AppendLine($"Type: {order.Type}");
-        sb.AppendLine($"Table: {order.TableNumber}");
-        sb.AppendLine($"Time: {localTime:HH:mm:ss}");
-        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+        // Handle table number (null for Takeaway/Delivery)
+        if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
         {
-            sb.AppendLine($"Customer: {order.CustomerName}");
+            sb.AppendLine($"Table: {order.TableNumber}");
+        }
+        else
+        {
+            sb.AppendLine($"Table: N/A");
         }
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
-        sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Items header - EXTRA DARK and larger
-        sb.Append(ESC_LARGE_ON);
-        sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("ITEMS:");
-        sb.Append(EXTRA_DARK_OFF);
-        sb.Append(ESC_DOUBLE_OFF);
-        sb.AppendLine();
+        // Customer name - normal size
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+        {
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine($"Customer: {order.CustomerName}");
+            sb.Append(EXTRA_DARK_OFF);
+        }
+
+        sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
         // Log item count for debugging
         _logger.LogInformation("Printing {ItemCount} items for order {OrderNumber}", order.Items?.Count ?? 0, order.OrderNumber);
@@ -180,32 +241,27 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - EXTRA DARK and larger (NO PRICES for kitchen)
+                // Item name and quantity - LARGE and EXTRA DARK for visibility
                 sb.Append(ESC_LARGE_ON);
                 sb.Append(EXTRA_DARK_ON);
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
                 sb.Append(EXTRA_DARK_OFF);
                 sb.Append(ESC_DOUBLE_OFF);
 
-                // Show variation if available
+                // Show variation if available (normal size)
                 if (!string.IsNullOrWhiteSpace(item.VariationName))
                 {
-                    sb.Append(ESC_DOUBLE_ON);
                     sb.Append(EXTRA_DARK_ON);
-                    sb.AppendLine($"   Variation: {item.VariationName}");
+                    sb.AppendLine($"   - {item.VariationName}");
                     sb.Append(EXTRA_DARK_OFF);
-                    sb.Append(ESC_DOUBLE_OFF);
                 }
 
-                // Show special instructions
+                // Show special instructions (normal size)
                 if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
                 {
-                    // Item notes - EXTRA DARK for visibility
-                    sb.Append(ESC_DOUBLE_ON);
                     sb.Append(EXTRA_DARK_ON);
                     sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
                     sb.Append(EXTRA_DARK_OFF);
-                    sb.Append(ESC_DOUBLE_OFF);
                 }
                 sb.AppendLine();
             }
@@ -217,41 +273,6 @@ public class OrderPrintService
             sb.AppendLine("(No items in order)");
         }
 
-        // Order notes - EXTRA DARK and larger for important information
-        if (!string.IsNullOrWhiteSpace(order.Notes))
-        {
-            sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
-            sb.Append(ESC_DOUBLE_ON);
-            sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("ORDER NOTES:");
-            sb.AppendLine(order.Notes);
-            sb.Append(EXTRA_DARK_OFF);
-            sb.Append(ESC_DOUBLE_OFF);
-            sb.AppendLine();
-        }
-
-        // Delivery address for delivery orders
-        if (order.Type == "Delivery" && !string.IsNullOrWhiteSpace(order.DeliveryAddress))
-        {
-            sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
-            sb.Append(ESC_DOUBLE_ON);
-            sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine("DELIVERY ADDRESS:");
-            sb.AppendLine(order.DeliveryAddress);
-            sb.Append(EXTRA_DARK_OFF);
-            sb.Append(ESC_DOUBLE_OFF);
-            sb.AppendLine();
-        }
-
-        // Footer - EXTRA DARK and larger for urgent message
-        sb.AppendLine(new string('=', paperWidth == 80 ? 48 : 32));
-        sb.Append(ESC_ALIGN_CENTER);
-        sb.Append(ESC_LARGE_ON);
-        sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine("PREPARE IMMEDIATELY");
-        sb.Append(EXTRA_DARK_OFF);
-        sb.Append(ESC_DOUBLE_OFF);
-        sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine();
 
@@ -289,11 +310,25 @@ public class OrderPrintService
         sb.Append(EXTRA_DARK_ON);
         sb.AppendLine($"Order #: {order.OrderNumber}");
         sb.AppendLine($"Type: {order.Type}");
-        sb.AppendLine($"Table: {order.TableNumber}");
+
+        // Handle table number (null for Takeaway/Delivery)
+        if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
+        {
+            sb.AppendLine($"Table: {order.TableNumber}");
+        }
+        else
+        {
+            sb.AppendLine($"Table: N/A");
+        }
+
         sb.AppendLine($"Date: {localTime:yyyy-MM-dd HH:mm}");
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
             sb.AppendLine($"Customer: {order.CustomerName}");
+        }
+        if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
+        {
+            sb.AppendLine($"Email: {order.CustomerEmail}");
         }
         if (!string.IsNullOrWhiteSpace(order.CustomerPhone))
         {
@@ -314,7 +349,7 @@ public class OrderPrintService
                 }
 
                 var itemLine = $"{item.Quantity}x {itemName}";
-                var price = $"${item.ItemTotal:F2}";
+                var price = $"CHF {item.ItemTotal:F2}";
                 var spacing = paperWidth == 80 ? 48 : 32;
                 var dots = spacing - itemLine.Length - price.Length;
 
@@ -340,26 +375,26 @@ public class OrderPrintService
 
         // Subtotal, Tax, Discount, Delivery Fee, Tip - EXTRA DARK
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Subtotal: ${order.SubTotal:F2}");
+        sb.AppendLine($"Subtotal: CHF {order.SubTotal:F2}");
 
         if (order.Tax > 0)
         {
-            sb.AppendLine($"Tax: ${order.Tax:F2}");
+            sb.AppendLine($"Tax: CHF {order.Tax:F2}");
         }
 
         if (order.Discount > 0)
         {
-            sb.AppendLine($"Discount ({order.DiscountPercentage}%): -${order.Discount:F2}");
+            sb.AppendLine($"Discount ({order.DiscountPercentage}%): -CHF {order.Discount:F2}");
         }
 
         if (order.DeliveryFee > 0)
         {
-            sb.AppendLine($"Delivery Fee: ${order.DeliveryFee:F2}");
+            sb.AppendLine($"Delivery Fee: CHF {order.DeliveryFee:F2}");
         }
 
         if (order.Tip > 0)
         {
-            sb.AppendLine($"Tip: ${order.Tip:F2}");
+            sb.AppendLine($"Tip: CHF {order.Tip:F2}");
         }
 
         sb.Append(EXTRA_DARK_OFF);
@@ -368,7 +403,7 @@ public class OrderPrintService
         // Total - EXTRA DARK, Bold and larger for maximum visibility
         sb.Append(ESC_DOUBLE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"TOTAL: ${order.Total:F2}");
+        sb.AppendLine($"TOTAL: CHF {order.Total:F2}");
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
         sb.AppendLine();
@@ -380,7 +415,7 @@ public class OrderPrintService
             sb.AppendLine("PAYMENT:");
             foreach (var payment in order.Payments)
             {
-                sb.AppendLine($"{payment.PaymentMethod}: ${payment.Amount:F2}");
+                sb.AppendLine($"{payment.PaymentMethod}: CHF {payment.Amount:F2}");
             }
             sb.Append(EXTRA_DARK_OFF);
             sb.AppendLine();
@@ -432,9 +467,9 @@ public class OrderPrintService
     private bool PrintToWindowsPrinter(string printerName, string content)
     {
 #if WINDOWS
-        // Use Windows-1254 (Turkish) encoding for proper Turkish character support
+        // Use PC857 (Turkish MS-DOS) encoding for Turkish + Western European character support
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        var encoding = Encoding.GetEncoding(1254); // Windows-1254 Turkish encoding
+        var encoding = Encoding.GetEncoding(857); // PC857 (Turkish MS-DOS) - supports Turkish ç,ğ,ı,ö,ş,ü AND Western European è,é,à,ò
         var bytes = encoding.GetBytes(content);
 
         var docInfo = new DOCINFOA
