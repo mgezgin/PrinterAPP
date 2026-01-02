@@ -169,16 +169,17 @@ public class EventStreamingService : IEventStreamingService
                     if (cancellationToken.IsCancellationRequested)
                         break;
 
-                    // Update last message time for ANY line received
-                    lastMessageReceived = DateTime.UtcNow;
-
-                    // Check for connection timeout (45 seconds = 3 missed heartbeats at 15s intervals)
+                    // Check for connection timeout BEFORE updating last message time
+                    // (45 seconds = 3 missed heartbeats at 15s intervals)
                     var timeSinceLastMessage = DateTime.UtcNow - lastMessageReceived;
                     if (timeSinceLastMessage.TotalSeconds > 45)
                     {
                         _logger.LogWarning("Connection timeout - no messages for {Seconds}s", timeSinceLastMessage.TotalSeconds);
                         throw new TimeoutException($"No messages received for {timeSinceLastMessage.TotalSeconds} seconds");
                     }
+
+                    // Update last message time for ANY line received
+                    lastMessageReceived = DateTime.UtcNow;
 
                     // SSE format: lines starting with "event:", "data:", or empty line (message delimiter)
                     if (line.StartsWith("event:"))
