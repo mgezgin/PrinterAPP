@@ -14,12 +14,14 @@ namespace PrinterAPP
         {
             try
             {
+                // Gets version from csproj - auto-increments with each build based on git commit count
                 var version = AppInfo.Current.VersionString;
-                VersionLabel.Text = $"Version {version}";
+                VersionLabel.Text = $"v{version}";
             }
             catch
             {
-                VersionLabel.Text = "Version 1.0.0";
+                // Fallback version if AppInfo is not available
+                VersionLabel.Text = "v1.0.0";
             }
         }
     }

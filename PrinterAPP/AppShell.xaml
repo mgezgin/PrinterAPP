@@ -38,10 +38,10 @@
             Route="WarningLogsPage" />
     </TabBar>
 
-    <!-- Version Label Overlay at Bottom Right -->
+    <!-- Version Label Overlay at Bottom Right - Auto-updates from build -->
     <Grid>
         <Label x:Name="VersionLabel"
-               Text="Version 1.0.0"
+               Text="v1.0.0"
                FontSize="10"
                TextColor="Gray"
                HorizontalOptions="End"
