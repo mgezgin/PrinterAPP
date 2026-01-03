@@ -59,14 +59,12 @@ public class EventStreamingService : IEventStreamingService
         _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _isListening = true;
 
-        // Start listening to service endpoint (both printers will receive from this endpoint)
-        _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "service", _cancellationTokenSource.Token);
-
-        // Start PRIMARY polling mechanism (runs alongside SSE as backup)
+        // Use ONLY polling for maximum reliability (SSE was unreliable)
+        // Poll every 5 seconds for confirmed orders
         _pollingTask = PollForOrdersAsync(config.ApiBaseUrl, _cancellationTokenSource.Token);
 
-        OnConnectionStatusChanged("Connected - using polling (primary) + SSE (enhancement)");
-        _logger.LogInformation("Started polling + SSE for order updates");
+        OnConnectionStatusChanged("Connected - polling for orders every 5s");
+        _logger.LogInformation("Started POLLING-ONLY mode for order updates (no SSE)");
     }
 
     public async Task StopListeningAsync()
@@ -546,14 +544,15 @@ public class EventStreamingService : IEventStreamingService
         }
     }
     /// <summary>
-    /// PRIMARY polling mechanism - polls for confirmed orders every 10 seconds as a backup to SSE
+    /// POLLING-ONLY mechanism - polls for confirmed orders every 5 seconds
+    /// SSE was unreliable, so we use pure polling for guaranteed delivery
     /// </summary>
     private async Task PollForOrdersAsync(string apiBaseUrl, CancellationToken cancellationToken)
     {
-        const int pollingIntervalSeconds = 10;
+        const int pollingIntervalSeconds = 5;  // Poll every 5 seconds for fast order delivery
         var url = $"{apiBaseUrl.TrimEnd('/')}/api/orders?status=Confirmed&modifiedSince=";
         
-        _logger.LogInformation("Starting PRIMARY polling for confirmed orders (every {Interval}s)", pollingIntervalSeconds);
+        _logger.LogInformation("Starting POLLING-ONLY mode for confirmed orders (every {Interval}s)", pollingIntervalSeconds);
         
         while (!cancellationToken.IsCancellationRequested)
         {
