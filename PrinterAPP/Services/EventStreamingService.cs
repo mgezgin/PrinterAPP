@@ -117,8 +117,16 @@ public class EventStreamingService : IEventStreamingService
                 _logger.LogInformation("Connecting to SSE stream: {Url}", url);
                 OnConnectionStatusChanged($"Connecting to {endpoint}...");
 
-                // Create new HttpClient for each connection attempt
-                httpClient = new HttpClient
+                // Create new HttpClient for each connection attempt with TCP keep-alive
+                var handler = new SocketsHttpHandler
+                {
+                    PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+                    PooledConnectionIdleTimeout = TimeSpan.FromMinutes(5),
+                    KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+                    KeepAlivePingDelay = TimeSpan.FromSeconds(15),
+                    KeepAlivePingTimeout = TimeSpan.FromSeconds(10)
+                };
+                httpClient = new HttpClient(handler)
                 {
                     Timeout = Timeout.InfiniteTimeSpan
                 };
@@ -176,7 +184,7 @@ public class EventStreamingService : IEventStreamingService
                     {
                         await Task.Delay(5000, timeoutCts.Token).ConfigureAwait(false);
                         var timeSinceLastMessage = DateTime.UtcNow - lastMessageReceived;
-                        if (timeSinceLastMessage.TotalSeconds > 45)
+                        if (timeSinceLastMessage.TotalSeconds > 35)
                         {
                             _logger.LogWarning("Connection timeout - no messages for {Seconds}s, cancelling...", timeSinceLastMessage.TotalSeconds);
                             timeoutCts.Cancel();
