@@ -18,6 +18,8 @@ public class EventStreamingService : IEventStreamingService
     private readonly Dictionary<string, DateTime> _processedOrders = new();
     private readonly object _processedOrdersLock = new();
     private const int MaxProcessedOrdersAge = 3600; // 1 hour in seconds
+    private DateTime _lastPollTime = DateTime.UtcNow;  // Track last poll for modifiedSince
+    private Task? _pollingTask;  // Primary polling mechanism
 
     public event EventHandler<OrderEvent>? OrderReceived;
     public event EventHandler<string>? ConnectionStatusChanged;
@@ -60,8 +62,11 @@ public class EventStreamingService : IEventStreamingService
         // Start listening to service endpoint (both printers will receive from this endpoint)
         _kitchenListeningTask = ListenToStreamAsync(config.ApiBaseUrl, "service", _cancellationTokenSource.Token);
 
-        OnConnectionStatusChanged("Connected to Service SSE stream");
-        _logger.LogInformation("Started listening to Service SSE stream");
+        // Start PRIMARY polling mechanism (runs alongside SSE as backup)
+        _pollingTask = PollForOrdersAsync(config.ApiBaseUrl, _cancellationTokenSource.Token);
+
+        OnConnectionStatusChanged("Connected - using polling (primary) + SSE (enhancement)");
+        _logger.LogInformation("Started polling + SSE for order updates");
     }
 
     public async Task StopListeningAsync()
@@ -539,5 +544,93 @@ public class EventStreamingService : IEventStreamingService
             _logger.LogError(ex, "Exception fetching order {OrderId}", orderId);
             return null;
         }
+    }
+    /// <summary>
+    /// PRIMARY polling mechanism - polls for confirmed orders every 10 seconds as a backup to SSE
+    /// </summary>
+    private async Task PollForOrdersAsync(string apiBaseUrl, CancellationToken cancellationToken)
+    {
+        const int pollingIntervalSeconds = 10;
+        var url = $"{apiBaseUrl.TrimEnd('/')}/api/orders?status=Confirmed&modifiedSince=";
+        
+        _logger.LogInformation("Starting PRIMARY polling for confirmed orders (every {Interval}s)", pollingIntervalSeconds);
+        
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(pollingIntervalSeconds), cancellationToken);
+                
+                var pollUrl = url + _lastPollTime.ToString("o");
+                _logger.LogDebug("Polling for orders since {Since}", _lastPollTime);
+                
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                var response = await httpClient.GetAsync(pollUrl, cancellationToken);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Polling failed with status {StatusCode}", response.StatusCode);
+                    continue;
+                }
+                
+                var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                var result = JsonSerializer.Deserialize<OrdersApiResponse>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+                
+                if (result?.Data?.Items != null && result.Data.Items.Count > 0)
+                {
+                    _logger.LogInformation("📦 Polling: Found {Count} confirmed orders", result.Data.Items.Count);
+                    
+                    foreach (var order in result.Data.Items)
+                    {
+                        // Use same deduplication logic as SSE events
+                        if (IsOrderAlreadyProcessed(order.OrderNumber))
+                        {
+                            _logger.LogDebug("Skipping duplicate order {OrderNumber} from polling", order.OrderNumber);
+                            continue;
+                        }
+                        
+                        MarkOrderAsProcessed(order.OrderNumber);
+                        
+                        var orderEvent = new OrderEvent
+                        {
+                            EventType = "order-polled",
+                            Order = order,
+                            Timestamp = DateTime.UtcNow
+                        };
+                        
+                        _logger.LogInformation("📦 Processing polled order: {OrderNumber}", order.OrderNumber);
+                        OnOrderReceived(orderEvent);
+                    }
+                }
+                
+                _lastPollTime = DateTime.UtcNow;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                _logger.LogInformation("Polling cancelled");
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during polling");
+                // Continue polling despite errors
+            }
+        }
+    }
+
+    /// <summary>
+    /// Response wrapper for orders API
+    /// </summary>
+    private class OrdersApiResponse
+    {
+        public OrdersPagedResult? Data { get; set; }
+    }
+
+    private class OrdersPagedResult
+    {
+        public List<Order>? Items { get; set; }
     }
 }
