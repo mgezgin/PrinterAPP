@@ -343,7 +343,36 @@ public class EventStreamingService : IEventStreamingService
                         }
                         else
                         {
-                            _logger.LogWarning("Order {OrderNumber} has no items!", order.OrderNumber);
+                            _logger.LogWarning("Order {OrderNumber} has no items! Attempting to fetch full details from API...", order.OrderNumber);
+                            
+                            try 
+                            {
+                                // Extract ID from OrderNumber (e.g., "ORD-123" or "123")
+                                var orderIdStr = order.OrderNumber.Contains("/") 
+                                    ? order.OrderNumber.Split('/').Last() 
+                                    : order.OrderNumber;
+                                
+                                if (int.TryParse(orderIdStr, out var orderId))
+                                {
+                                    var fullOrder = await FetchOrderDetailsAsync(orderId, sourceEndpoint);
+                                    if (fullOrder != null && fullOrder.Items != null && fullOrder.Items.Any())
+                                    {
+                                        _logger.LogInformation("Successfully fetched full details for order {OrderNumber} with {Count} items", 
+                                            order.OrderNumber, fullOrder.Items.Count);
+                                        order = fullOrder;
+                                        // Update the wrapper reference too
+                                        if (orderEvent != null) orderEvent.Order = fullOrder;
+                                    }
+                                    else
+                                    {
+                                        _logger.LogWarning("Failed to fetch items for order {OrderNumber} from API", order.OrderNumber);
+                                    }
+                                }
+                            }
+                            catch (Exception fetchEx)
+                            {
+                                _logger.LogError(fetchEx, "Error fetching full order details for {OrderNumber}", order.OrderNumber);
+                            }
                         }
 
                         // Log parsed order with full JSON data
@@ -475,6 +504,40 @@ public class EventStreamingService : IEventStreamingService
         if (oldOrders.Count > 0)
         {
             _logger.LogDebug("Cleaned up {Count} old processed order records", oldOrders.Count);
+        }
+    }
+    private async Task<Order?> FetchOrderDetailsAsync(int orderId, string sourceEndpoint)
+    {
+        try
+        {
+            var config = await _printerService.LoadConfigurationAsync();
+            if (string.IsNullOrWhiteSpace(config.ApiBaseUrl)) return null;
+
+            var url = $"{config.ApiBaseUrl.TrimEnd('/')}/api/orders/{orderId}";
+            _logger.LogDebug("Fetching order details from: {Url}", url);
+
+            using var httpClient = new HttpClient();
+            // Pass the token if available in config (future improvement)
+            
+            var response = await httpClient.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Failed to fetch order {OrderId}: {StatusCode}", orderId, response.StatusCode);
+                return null;
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            var order = JsonSerializer.Deserialize<Order>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+
+            return order;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception fetching order {OrderId}", orderId);
+            return null;
         }
     }
 }
