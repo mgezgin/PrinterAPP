@@ -11,6 +11,7 @@ namespace PrinterAPP.Models;
 public class PrinterConfiguration
 {
     public string ApiBaseUrl { get; set; } = "https://www.rumirestaurant.ch";
+    public string ApiToken { get; set; } = "";  // JWT token for API authentication
 
     // Kitchen Printer Settings
     public string KitchenPrinterName { get; set; } = "";

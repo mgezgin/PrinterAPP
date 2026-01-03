@@ -549,10 +549,19 @@ public class EventStreamingService : IEventStreamingService
     /// </summary>
     private async Task PollForOrdersAsync(string apiBaseUrl, CancellationToken cancellationToken)
     {
-        const int pollingIntervalSeconds = 5;  // Poll every 5 seconds for fast order delivery
-        var url = $"{apiBaseUrl.TrimEnd('/')}/api/orders?status=Confirmed&modifiedSince=";
+        const int pollingIntervalSeconds = 5;
+        var baseUrl = apiBaseUrl.TrimEnd('/');
         
-        _logger.LogInformation("Starting POLLING-ONLY mode for confirmed orders (every {Interval}s)", pollingIntervalSeconds);
+        _logger.LogInformation("========================================");
+        _logger.LogInformation("🔄 POLLING SERVICE STARTED");
+        _logger.LogInformation("   API Base URL: {Url}", baseUrl);
+        _logger.LogInformation("   Interval: {Interval} seconds", pollingIntervalSeconds);
+        _logger.LogInformation("========================================");
+        
+        // Also log to debug output for WPF apps
+        System.Diagnostics.Debug.WriteLine($"[POLLING] Started - URL: {baseUrl}, Interval: {pollingIntervalSeconds}s");
+        
+        int pollCount = 0;
         
         while (!cancellationToken.IsCancellationRequested)
         {
@@ -560,34 +569,67 @@ public class EventStreamingService : IEventStreamingService
             {
                 await Task.Delay(TimeSpan.FromSeconds(pollingIntervalSeconds), cancellationToken);
                 
-                var pollUrl = url + _lastPollTime.ToString("o");
-                _logger.LogDebug("Polling for orders since {Since}", _lastPollTime);
+                pollCount++;
+                // Use dedicated printer-feed endpoint (no auth required)
+                var pollUrl = $"{baseUrl}/api/orders/printer-feed?modifiedSince={_lastPollTime:o}";
+                
+                _logger.LogInformation("🔄 Poll #{Count} - Fetching orders since {Since}", pollCount, _lastPollTime);
+                System.Diagnostics.Debug.WriteLine($"[POLLING] #{pollCount} - URL: {pollUrl}");
+                
+                // Update connection status so UI shows activity
+                OnConnectionStatusChanged($"Polling... (#{pollCount})");
                 
                 using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+                
+                // Add authorization header if we have a token
+                var config = await _printerService.LoadConfigurationAsync();
+                if (!string.IsNullOrWhiteSpace(config.ApiToken))
+                {
+                    httpClient.DefaultRequestHeaders.Authorization = 
+                        new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", config.ApiToken);
+                    _logger.LogInformation("   Using API token for authentication");
+                }
+                else
+                {
+                    _logger.LogWarning("   ⚠️ No API token configured - request may fail if auth required");
+                }
+                
                 var response = await httpClient.GetAsync(pollUrl, cancellationToken);
+                
+                _logger.LogInformation("   Response: {StatusCode}", response.StatusCode);
+                System.Diagnostics.Debug.WriteLine($"[POLLING] Response: {response.StatusCode}");
                 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogWarning("Polling failed with status {StatusCode}", response.StatusCode);
+                    var errorBody = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogWarning("❌ Polling failed: {StatusCode} - {Body}", response.StatusCode, errorBody.Substring(0, Math.Min(200, errorBody.Length)));
+                    OnConnectionStatusChanged($"Poll failed: {response.StatusCode}");
                     continue;
                 }
                 
                 var json = await response.Content.ReadAsStringAsync(cancellationToken);
+                _logger.LogInformation("   Response length: {Length} bytes", json.Length);
+                
                 var result = JsonSerializer.Deserialize<OrdersApiResponse>(json, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
                 });
                 
+                var itemCount = result?.Data?.Items?.Count ?? 0;
+                _logger.LogInformation("   Orders found: {Count}", itemCount);
+                
                 if (result?.Data?.Items != null && result.Data.Items.Count > 0)
                 {
-                    _logger.LogInformation("📦 Polling: Found {Count} confirmed orders", result.Data.Items.Count);
+                    _logger.LogInformation("📦 Found {Count} confirmed orders!", result.Data.Items.Count);
                     
                     foreach (var order in result.Data.Items)
                     {
-                        // Use same deduplication logic as SSE events
+                        _logger.LogInformation("   Processing order: {OrderNumber} (Status: {Status})", 
+                            order.OrderNumber, order.Status);
+                        
                         if (IsOrderAlreadyProcessed(order.OrderNumber))
                         {
-                            _logger.LogDebug("Skipping duplicate order {OrderNumber} from polling", order.OrderNumber);
+                            _logger.LogInformation("   ⏭️ Skipping duplicate: {OrderNumber}", order.OrderNumber);
                             continue;
                         }
                         
@@ -600,24 +642,36 @@ public class EventStreamingService : IEventStreamingService
                             Timestamp = DateTime.UtcNow
                         };
                         
-                        _logger.LogInformation("📦 Processing polled order: {OrderNumber}", order.OrderNumber);
+                        _logger.LogInformation("�️ Sending order to printer: {OrderNumber}", order.OrderNumber);
                         OnOrderReceived(orderEvent);
                     }
                 }
+                else
+                {
+                    _logger.LogInformation("   No new orders");
+                }
                 
                 _lastPollTime = DateTime.UtcNow;
+                OnConnectionStatusChanged($"Connected - last poll: {DateTime.Now:HH:mm:ss}");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Polling cancelled");
+                _logger.LogInformation("🛑 Polling cancelled");
                 break;
+            }
+            catch (HttpRequestException httpEx)
+            {
+                _logger.LogError(httpEx, "❌ Network error during polling");
+                OnConnectionStatusChanged($"Network error: {httpEx.Message}");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error during polling");
-                // Continue polling despite errors
+                _logger.LogError(ex, "❌ Error during polling");
+                OnConnectionStatusChanged($"Error: {ex.Message}");
             }
         }
+        
+        _logger.LogInformation("🛑 Polling service stopped");
     }
 
     /// <summary>
