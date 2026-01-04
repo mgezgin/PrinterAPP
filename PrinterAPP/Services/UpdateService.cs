@@ -53,9 +53,21 @@ public class UpdateService
             updateInfo.ReleaseName = response.Name ?? "";
             updateInfo.ReleaseNotes = response.Body ?? "";
 
-            // Find the exe asset
+            // Determine system architecture
+            bool is64Bit = Environment.Is64BitOperatingSystem;
+            string arch = is64Bit ? "x64" : "x86";
+
+            // Find the best matching exe asset
             var exeAsset = response.Assets?.FirstOrDefault(a => 
+                a.Name?.Contains(arch, StringComparison.OrdinalIgnoreCase) == true && 
                 a.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true);
+
+            // Fallback: If no arch-specific found, take any .exe (legacy support)
+            if (exeAsset == null)
+            {
+                exeAsset = response.Assets?.FirstOrDefault(a => 
+                    a.Name?.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) == true);
+            }
 
             if (exeAsset != null)
             {

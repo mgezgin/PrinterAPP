@@ -36,7 +36,7 @@ GitHub Actions will automatically build the Windows `.exe` and upload it when yo
 
 1. Go to **Releases**.
 2. You will see a new release created automatically (or a draft).
-3. The file `PrinterApp-Setup.exe` will be attached automatically.
+3. The files `PrinterApp-Setup-x64.exe` and `PrinterApp-Setup-x86.exe` will be attached automatically.
 4. Edit the release to add release notes if desired.
 
 ## Step 5: Restaurant Can Now Update
@@ -46,7 +46,7 @@ Restaurant users:
 2. Click "🔄 Update" button
 3. Click "Check for Updates"
 4. If update available, click "Update Now"
-5. App automatically downloads, installs, and restarts
+5. App automatically downloads correct version (x64 or x86), installs, and restarts
 
 ## Version Numbering
 
