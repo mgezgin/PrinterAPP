@@ -353,7 +353,7 @@ public class OrderPrintService
             // Or use normal 'i' if suitable. The issue is 'I' becoming 'ı' (dotless i) or 'ÿ' in some codepages.
             // Do NOT replace 'I' with 'İ' anymore as it causes encoding issues (ÿ) on some printers
             // Just use the upper case name directly.
-            var safeName = kitchenName.ToUpper();
+            var safeName = kitchenName.ToUpperInvariant();
             
             sb.AppendLine($"*** {safeName} ***");
             sb.Append(EXTRA_DARK_OFF);
