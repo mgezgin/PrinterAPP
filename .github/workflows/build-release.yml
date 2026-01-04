@@ -19,7 +19,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x' # Adjust if using a different .NET version
+        dotnet-version: '9.0.x' # Updated to match project's net9.0 target
 
     - name: Install MAUI Workload
       run: dotnet workload install maui
@@ -27,12 +27,12 @@ jobs:
     - name: Build and Publish (x64)
       run: |
         cd PrinterAPP
-        dotnet publish PrinterAPP.csproj -c Release -f net8.0-windows10.0.19041.0 -r win-x64 --self-contained -p:PublishSingleFile=true -o ./publish/x64
+        dotnet publish PrinterAPP.csproj -c Release -f net9.0-windows10.0.19041.0 -r win-x64 --self-contained -p:PublishSingleFile=true -o ./publish/x64
 
     - name: Build and Publish (x86)
       run: |
         cd PrinterAPP
-        dotnet publish PrinterAPP.csproj -c Release -f net8.0-windows10.0.19041.0 -r win-x86 --self-contained -p:PublishSingleFile=true -o ./publish/x86
+        dotnet publish PrinterAPP.csproj -c Release -f net9.0-windows10.0.19041.0 -r win-x86 --self-contained -p:PublishSingleFile=true -o ./publish/x86
 
     - name: Rename Executables
       run: |
