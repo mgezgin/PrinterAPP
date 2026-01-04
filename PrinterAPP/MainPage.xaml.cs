@@ -638,7 +638,6 @@ public partial class MainPage : ContentPage
             await DisplayAlert("Error", $"Failed to reset settings: {ex.Message}", "OK");
         }
     }
-}
     private async void OnCheckForUpdatesClicked(object sender, EventArgs e)
     {
         try
