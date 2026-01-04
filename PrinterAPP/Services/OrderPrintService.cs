@@ -340,26 +340,28 @@ public class OrderPrintService
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // Order # and Table - DOUBLE size, EXTRA DARK for visibility
+        // Order number + Date/Time on one line - EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
-        sb.Append(ESC_DOUBLE_ON);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Order: {order.OrderNumber}");
+        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
+            ? order.OrderDate.ToLocalTime()
+            : order.OrderDate;
+        sb.AppendLine($"{order.OrderNumber} - {localTime:dd/MM/yyyy HH:mm}");
+        sb.Append(EXTRA_DARK_OFF);
 
-        // Handle table number (null for Takeaway/Delivery)
+        // Type + Table on one line
+        sb.Append(EXTRA_DARK_ON);
         if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
         {
-            sb.AppendLine($"Table: {order.TableNumber}");
+            sb.AppendLine($"Type: {order.Type} - Table {order.TableNumber}");
         }
         else
         {
-            // Show order type for Takeaway/Delivery instead of "N/A"
             sb.AppendLine($"Type: {order.Type}");
         }
         sb.Append(EXTRA_DARK_OFF);
-        sb.Append(ESC_DOUBLE_OFF);
 
-        // Customer name - normal size
+        // Customer name only (no phone)
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
         {
             sb.Append(EXTRA_DARK_ON);
@@ -367,11 +369,6 @@ public class OrderPrintService
             sb.Append(EXTRA_DARK_OFF);
         }
 
-        // Add date/time for reference
-        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
-            ? order.OrderDate.ToLocalTime()
-            : order.OrderDate;
-        sb.AppendLine($\"{localTime:HH:mm dd/MM/yyyy}\");
 
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
@@ -474,36 +471,34 @@ public class OrderPrintService
             ? order.OrderDate.ToLocalTime()
             : order.OrderDate;
 
-        // Order info - EXTRA DARK for visibility
+        // Order number + Date/Time on one line - EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
         sb.Append(EXTRA_DARK_ON);
-        sb.AppendLine($"Order #: {order.OrderNumber}");
-        sb.AppendLine($"Type: {order.Type}");
+        sb.AppendLine($"{order.OrderNumber} - {localTime:dd/MM/yyyy HH:mm}");
+        sb.Append(EXTRA_DARK_OFF);
 
-        // Handle table number - only show for Dine-In orders
+        // Type + Table on one line
+        sb.Append(EXTRA_DARK_ON);
         if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
         {
-            sb.AppendLine($"Table: {order.TableNumber}");
+            sb.AppendLine($"Type: {order.Type} - Table {order.TableNumber}");
         }
-        // No "Table: N/A" needed since Type is already shown above
-
-        sb.AppendLine($"Date: {localTime:yyyy-MM-dd HH:mm}");
-        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+        else
         {
-            sb.AppendLine($"Customer: {order.CustomerName}");
-        }
-        if (!string.IsNullOrWhiteSpace(order.CustomerEmail))
-        {
-            sb.AppendLine($"Email: {order.CustomerEmail}");
-        }
-        if (!string.IsNullOrWhiteSpace(order.CustomerPhone))
-        {
-            sb.AppendLine($"Phone: {order.CustomerPhone}");
+            sb.AppendLine($"Type: {order.Type}");
         }
         sb.Append(EXTRA_DARK_OFF);
+
+        // Customer name only (no phone/email)
+        if (!string.IsNullOrWhiteSpace(order.CustomerName))
+        {
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine($"Customer: {order.CustomerName}");
+            sb.Append(EXTRA_DARK_OFF);
+        }
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
-        // Items with prices - EXTRA DARK
+        // Items with prices - simplified (no customizations)
         if (order.Items != null && order.Items.Any())
         {
             foreach (var item in order.Items)
@@ -524,11 +519,6 @@ public class OrderPrintService
                 sb.Append(new string('.', Math.Max(1, dots)));
                 sb.AppendLine(price);
                 sb.Append(EXTRA_DARK_OFF);
-
-                if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
-                {
-                    sb.AppendLine($"  * {item.SpecialInstructions}");
-                }
             }
         }
         else
