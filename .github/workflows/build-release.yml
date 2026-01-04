@@ -1,0 +1,45 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on version tags (e.g., v1.0.0)
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x' # Adjust if using a different .NET version
+
+    - name: Install MAUI Workload
+      run: dotnet workload install maui
+
+    - name: Restore dependencies
+      run: dotnet restore PrinterAPP/PrinterAPP/PrinterAPP.csproj
+
+    - name: Build and Publish
+      run: |
+        cd PrinterAPP/PrinterAPP
+        dotnet publish -c Release -f net8.0-windows10.0.19041.0 -r win-x64 --self-contained -p:PublishSingleFile=true -o ./publish
+
+    - name: Rename Executable
+      run: |
+        cd PrinterAPP/PrinterAPP/publish
+        ren PrinterAPP.exe PrinterApp-Setup.exe
+
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
+        files: PrinterAPP/PrinterAPP/publish/PrinterApp-Setup.exe
+        token: ${{ secrets.GITHUB_TOKEN }}
