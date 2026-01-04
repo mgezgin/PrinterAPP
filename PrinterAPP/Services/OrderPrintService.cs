@@ -86,7 +86,7 @@ public class OrderPrintService
                 {
                     // Filter order to only FrontKitchen items
                     var filteredOrder = CreateFilteredOrder(order, "FrontKitchen");
-                    var content = FormatKitchenReceipt(filteredOrder, config, config.FrontKitchenPaperWidth, "Front Kitchen");
+                    var content = FormatKitchenReceipt(filteredOrder, config, config.FrontKitchenPaperWidth, "FRONT KITCHEN");
                     frontKitchenSuccess = await PrintRawContentAsync(frontKitchenPrinter, content);
                     _logger.LogInformation("FrontKitchen print ({ItemCount} items) to {Printer}: {Result}", 
                         filteredOrder.Items?.Count ?? 0, frontKitchenPrinter, frontKitchenSuccess ? "✓" : "✗");
@@ -261,8 +261,9 @@ public class OrderPrintService
                 _logger.LogInformation("Order #{OrderNumber} contains FrontKitchen items - printing kitchen format + cashier format to cashier printer",
                     order.OrderNumber);
 
-                // First print: Kitchen format
-                string kitchenContent = FormatKitchenReceipt(order, config, paperWidth);
+                // First print: Kitchen format (Fallback for Front Kitchen)
+                // We MUST provide a header name so the kitchen section is clearly identified
+                string kitchenContent = FormatKitchenReceipt(order, config, paperWidth, "FRONT KITCHEN");
                 _requestLogService.LogPrintRequest(printerType.ToString() + " (Kitchen Format)", orderNumForLog, printerName, kitchenContent);
 
                 var kitchenResult = await PrintRawContentAsync(printerName, kitchenContent);
@@ -350,9 +351,9 @@ public class OrderPrintService
             
             // Fix for Turkish encoding: Replace 'I' with 'İ' to ensure it prints as 'I'
             // Or use normal 'i' if suitable. The issue is 'I' becoming 'ı' (dotless i) or 'ÿ' in some codepages.
-            // Best approach: Use English/ASCII for headers or ensure correct mapping.
-            // Simple hack: "KITCHEN" -> "KITCHEN" logic check
-            var safeName = kitchenName.ToUpper().Replace("I", "İ"); // Force dotted I for Turkish code page
+            // Do NOT replace 'I' with 'İ' anymore as it causes encoding issues (ÿ) on some printers
+            // Just use the upper case name directly.
+            var safeName = kitchenName.ToUpper();
             
             sb.AppendLine($"*** {safeName} ***");
             sb.Append(EXTRA_DARK_OFF);
@@ -479,7 +480,8 @@ public class OrderPrintService
         sb.AppendLine();
         sb.AppendLine();
 
-        sb.Append(ESC_FEED_AND_CUT);
+        // Use GS V 0 (Standard Full Cut) instead of FEED_AND_CUT which might be model specific
+        sb.Append(ESC_CUT);
 
         return sb.ToString();
     }
@@ -633,7 +635,7 @@ public class OrderPrintService
         sb.AppendLine();
         sb.AppendLine();
 
-        sb.Append(ESC_FEED_AND_CUT);
+        sb.Append(ESC_CUT);
 
         return sb.ToString();
     }
