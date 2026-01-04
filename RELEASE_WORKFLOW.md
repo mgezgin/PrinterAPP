@@ -1,46 +1,45 @@
-# How to Create a Release for Printer App
+# How to Create a Release for Printer App (Automated)
 
 ## Step 1: Update Version Number
 
 Edit `PrinterAPP/PrinterAPP/PrinterAPP.csproj` and increment the version:
 
 ```xml
-<Version>1.0.1</Version>
-<ApplicationDisplayVersion>1.0.1</ApplicationDisplayVersion>
+<Version>1.0.3</Version>
+<ApplicationDisplayVersion>1.0.3</ApplicationDisplayVersion>
 ```
 
-## Step 2: Build Release Binary
+## Step 2: Commit and Tag
 
-Run from `PrinterAPP/PrinterAPP` directory:
+GitHub Actions will automatically build the Windows `.exe` and upload it when you push a new tag.
 
-```bash
-dotent publish -c Release -r win-x64 --self-contained
-```
+1. Commit your changes:
+   ```bash
+   git add .
+   git commit -m "chore: bump version to 1.0.3"
+   git push
+   ```
 
-The compiled `.exe` will be in:
-```
-bin/Release/net9.0-windows10.0.19041.0/win-x64/publish/PrinterAPP.exe
-```
+2. Create and push a tag:
+   ```bash
+   git tag v1.0.3
+   git push origin v1.0.3
+   ```
 
-## Step 3: Create GitHub Release
+## Step 3: Wait for Build
 
-1. Go to: https://github.com/mahmutkaya/rumi-restaurant/releases/new
+1. Go to your GitHub repository -> **Actions** tab.
+2. You will see a "Build and Release" workflow running.
+3. Wait ~5 minutes for it to complete.
 
-2. Create a new tag:
-   - Tag: `v1.0.1` (must match version in csproj)
-   - Target: `main` branch
+## Step 4: Publish Release
 
-3. Fill release details:
-   - **Title**: `Printer App v1.0.1`
-   - **Description**: List what's new/fixed in this version
+1. Go to **Releases**.
+2. You will see a new release created automatically (or a draft).
+3. The file `PrinterApp-Setup.exe` will be attached automatically.
+4. Edit the release to add release notes if desired.
 
-4. Upload the compiled exe:
-   - Click "Attach binaries"
-   - Upload `PrinterAPP.exe` from the publish folder
-
-5. Click "Publish release"
-
-## Step 4: Restaurant Can Now Update
+## Step 5: Restaurant Can Now Update
 
 Restaurant users:
 1. Open Printer App
@@ -56,20 +55,13 @@ Restaurant users:
 - **Minor** (0.X.0): New features, non-breaking changes
 - **Major** (X.0.0): Breaking changes, major rewrites
 
-## Testing Before Release
-
-1. Build release locally
-2. Test the exe on a local machine
-3. Verify all features work
-4. Create release only when confident
-
 ## Troubleshooting
 
-**Q: Update check fails with "API rate limit exceeded"**
-A: GitHub API has rate limits. Wait a few minutes and try again.
+**Q: Build failed on GitHub Actions**
+A: Check the Actions logs. Ensure code compiles locally.
 
-**Q: Download fails or file is corrupted**
-A: Ensure the exe was uploaded correctly to GitHub release assets.
+**Q: Tag pushed but no release created**
+A: Check `.github/workflows/build-release.yml` syntax or permissions.
 
-**Q: App doesn't restart after update**
-A: Check Windows permissions. App needs write access to its directory.
+**Q: App update fails**
+A: Ensure the generated `PrinterApp-Setup.exe` is roughly 60MB+ in size (it includes .NET runtime).
