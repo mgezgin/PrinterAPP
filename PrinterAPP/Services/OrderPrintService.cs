@@ -77,9 +77,10 @@ public class OrderPrintService
         {
             try
             {
+                // Logic: Use dedicated FrontPrinter if exists, otherwise fallback to CashierPrinter (NOT KitchenPrinter/BackPrinter)
                 var frontKitchenPrinter = !string.IsNullOrWhiteSpace(config.FrontKitchenPrinterName) 
                     ? config.FrontKitchenPrinterName 
-                    : config.KitchenPrinterName;  // Fallback to legacy
+                    : config.CashierPrinterName; // Fallback to Cashier Printer as requested
 
                 if (!string.IsNullOrWhiteSpace(frontKitchenPrinter) && config.FrontKitchenAutoPrint)
                 {
@@ -87,8 +88,8 @@ public class OrderPrintService
                     var filteredOrder = CreateFilteredOrder(order, "FrontKitchen");
                     var content = FormatKitchenReceipt(filteredOrder, config, config.FrontKitchenPaperWidth, "Front Kitchen");
                     frontKitchenSuccess = await PrintRawContentAsync(frontKitchenPrinter, content);
-                    _logger.LogInformation("FrontKitchen print ({ItemCount} items): {Result}", 
-                        filteredOrder.Items?.Count ?? 0, frontKitchenSuccess ? "✓" : "✗");
+                    _logger.LogInformation("FrontKitchen print ({ItemCount} items) to {Printer}: {Result}", 
+                        filteredOrder.Items?.Count ?? 0, frontKitchenPrinter, frontKitchenSuccess ? "✓" : "✗");
                 }
             }
             catch (Exception ex)
@@ -346,7 +347,14 @@ public class OrderPrintService
             sb.Append(ESC_ALIGN_CENTER);
             sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
-            sb.AppendLine($"*** {kitchenName.ToUpper()} ***");
+            
+            // Fix for Turkish encoding: Replace 'I' with 'İ' to ensure it prints as 'I'
+            // Or use normal 'i' if suitable. The issue is 'I' becoming 'ı' (dotless i) or 'ÿ' in some codepages.
+            // Best approach: Use English/ASCII for headers or ensure correct mapping.
+            // Simple hack: "KITCHEN" -> "KITCHEN" logic check
+            var safeName = kitchenName.ToUpper().Replace("I", "İ"); // Force dotted I for Turkish code page
+            
+            sb.AppendLine($"*** {safeName} ***");
             sb.Append(EXTRA_DARK_OFF);
             sb.Append(ESC_DOUBLE_OFF);
             sb.AppendLine();
@@ -416,11 +424,28 @@ public class OrderPrintService
                     {
                         if (ing.IsRemoved)
                         {
+                            // Strikethrough isn't always supported on thermal printers, so we use "NO" prefix
+                            // and maybe bracket it or use a specific font if possible.
+                            // Frontend uses "✘ NO onion". We'll match that text.
+                            // To simulate strikethrough or emphasis, we can use different font or bold.
+                           
+                            sb.Append(ESC_BOLD_ON); // Turn on bold for emphasis
                             sb.AppendLine($"   ✘ NO {ing.IngredientName}");
+                            sb.Append(ESC_BOLD_OFF);
                         }
                         else if (ing.Quantity > 1)
                         {
+                            sb.Append(ESC_BOLD_ON);
                             sb.AppendLine($"   + EXTRA {ing.IngredientName}");
+                            sb.Append(ESC_BOLD_OFF);
+                        }
+                        else 
+                        {
+                            // Selected ingredient (standard included ones usually don't show here unless customized)
+                            // But if it's in the list and not removed/extra, it means it's explicitly selected/changed?
+                            // Frontend logic: show if isRemoved OR quantity > 1.
+                            // If it's just quantity 1 and not removed, it might be a mandatory choice.
+                            sb.AppendLine($"   • {ing.IngredientName}");
                         }
                     }
                 }
