@@ -299,17 +299,12 @@ public partial class MainPage : ContentPage
                 // Add order to history
                 _orderHistoryService.AddOrder(orderEvent);
 
-                // Print to kitchen
-                var kitchenSuccess = await _orderPrintService.PrintOrderAsync(
-                    orderEvent.Order,
-                    OrderPrintService.PrinterType.Kitchen);
+                // Print to all appropriate printers (Cashier + FrontKitchen + BackKitchen)
+                var (cashierSuccess, frontKitchenSuccess, backKitchenSuccess) = 
+                    await _orderPrintService.PrintOrderToAllPrintersAsync(orderEvent.Order);
 
-                // Print to cashier
-                var cashierSuccess = await _orderPrintService.PrintOrderAsync(
-                    orderEvent.Order,
-                    OrderPrintService.PrinterType.Cashier);
-
-                // Update print status in history
+                // Update print status in history (combine kitchen results)
+                var kitchenSuccess = frontKitchenSuccess && backKitchenSuccess;
                 _orderHistoryService.UpdatePrintStatus(orderEvent.Order.Id, kitchenSuccess, cashierSuccess);
 
                 StatusLabel.Text = $"Order #{orderEvent.Order.OrderNumber} printed";

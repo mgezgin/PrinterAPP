@@ -18,7 +18,7 @@ public class EventStreamingService : IEventStreamingService
     private readonly Dictionary<string, DateTime> _processedOrders = new();
     private readonly object _processedOrdersLock = new();
     private const int MaxProcessedOrdersAge = 3600; // 1 hour in seconds
-    private DateTime _lastPollTime = DateTime.UtcNow;  // Track last poll for modifiedSince
+    private DateTime _lastPollTime = DateTime.UtcNow.AddMinutes(-30);  // Start 30 min ago to avoid fetching all historical orders
     private Task? _pollingTask;  // Primary polling mechanism
 
     public event EventHandler<OrderEvent>? OrderReceived;

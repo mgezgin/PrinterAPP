@@ -13,7 +13,17 @@ public class PrinterConfiguration
     public string ApiBaseUrl { get; set; } = "https://www.rumirestaurant.ch";
     public string ApiToken { get; set; } = "";  // JWT token for API authentication
 
-    // Kitchen Printer Settings
+    // Front Kitchen Printer Settings (for drinks, desserts, etc.)
+    public string FrontKitchenPrinterName { get; set; } = "";
+    public bool FrontKitchenAutoPrint { get; set; } = true;
+    public int FrontKitchenPaperWidth { get; set; } = 80;
+
+    // Back Kitchen Printer Settings (for main dishes, grills, etc.)
+    public string BackKitchenPrinterName { get; set; } = "";
+    public bool BackKitchenAutoPrint { get; set; } = true;
+    public int BackKitchenPaperWidth { get; set; } = 80;
+
+    // Legacy Kitchen Printer (fallback if specific kitchens not configured)
     public string KitchenPrinterName { get; set; } = "";
     public bool KitchenAutoPrint { get; set; } = true;
     public int KitchenPrintCopies { get; set; } = 1;

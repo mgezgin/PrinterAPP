@@ -40,6 +40,143 @@ public class OrderPrintService
         _logger = logger;
     }
 
+    /// <summary>
+    /// Prints order to all appropriate printers: Cashier + FrontKitchen + BackKitchen (filtered by item KitchenType)
+    /// </summary>
+    public async Task<(bool Cashier, bool FrontKitchen, bool BackKitchen)> PrintOrderToAllPrintersAsync(
+        Order order, 
+        bool isManualPrint = false, 
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("🖨️ Printing order {OrderNumber} to all printers", order.OrderNumber);
+
+        var config = await _printerService.LoadConfigurationAsync();
+        bool cashierSuccess = false;
+        bool frontKitchenSuccess = false;
+        bool backKitchenSuccess = false;
+
+        // 1. ALWAYS print to Cashier (full receipt with prices)
+        try
+        {
+            cashierSuccess = await PrintOrderAsync(order, PrinterType.Cashier, isManualPrint, cancellationToken);
+            _logger.LogInformation("Cashier print: {Result}", cashierSuccess ? "✓" : "✗");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error printing to cashier");
+        }
+
+        // 2. Check which kitchens have items
+        var hasFrontKitchenItems = order.Items?.Any(i => 
+            string.Equals(i.KitchenType, "FrontKitchen", StringComparison.OrdinalIgnoreCase)) ?? false;
+        var hasBackKitchenItems = order.Items?.Any(i => 
+            string.Equals(i.KitchenType, "BackKitchen", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+        // 3. Print to FrontKitchen if there are FrontKitchen items
+        if (hasFrontKitchenItems)
+        {
+            try
+            {
+                var frontKitchenPrinter = !string.IsNullOrWhiteSpace(config.FrontKitchenPrinterName) 
+                    ? config.FrontKitchenPrinterName 
+                    : config.KitchenPrinterName;  // Fallback to legacy
+
+                if (!string.IsNullOrWhiteSpace(frontKitchenPrinter) && config.FrontKitchenAutoPrint)
+                {
+                    // Filter order to only FrontKitchen items
+                    var filteredOrder = CreateFilteredOrder(order, "FrontKitchen");
+                    var content = FormatKitchenReceipt(filteredOrder, config, config.FrontKitchenPaperWidth);
+                    frontKitchenSuccess = await PrintRawContentAsync(frontKitchenPrinter, content);
+                    _logger.LogInformation("FrontKitchen print ({ItemCount} items): {Result}", 
+                        filteredOrder.Items?.Count ?? 0, frontKitchenSuccess ? "✓" : "✗");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error printing to FrontKitchen");
+            }
+        }
+        else
+        {
+            frontKitchenSuccess = true; // No items to print
+        }
+
+        // 4. Print to BackKitchen if there are BackKitchen items
+        if (hasBackKitchenItems)
+        {
+            try
+            {
+                var backKitchenPrinter = !string.IsNullOrWhiteSpace(config.BackKitchenPrinterName) 
+                    ? config.BackKitchenPrinterName 
+                    : config.KitchenPrinterName;  // Fallback to legacy
+
+                if (!string.IsNullOrWhiteSpace(backKitchenPrinter) && config.BackKitchenAutoPrint)
+                {
+                    // Filter order to only BackKitchen items
+                    var filteredOrder = CreateFilteredOrder(order, "BackKitchen");
+                    var content = FormatKitchenReceipt(filteredOrder, config, config.BackKitchenPaperWidth);
+                    backKitchenSuccess = await PrintRawContentAsync(backKitchenPrinter, content);
+                    _logger.LogInformation("BackKitchen print ({ItemCount} items): {Result}", 
+                        filteredOrder.Items?.Count ?? 0, backKitchenSuccess ? "✓" : "✗");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error printing to BackKitchen");
+            }
+        }
+        else
+        {
+            backKitchenSuccess = true; // No items to print
+        }
+
+        _logger.LogInformation("🖨️ Print complete for order {OrderNumber}: Cashier={C}, Front={F}, Back={B}",
+            order.OrderNumber, cashierSuccess, frontKitchenSuccess, backKitchenSuccess);
+
+        return (cashierSuccess, frontKitchenSuccess, backKitchenSuccess);
+    }
+
+    /// <summary>
+    /// Creates a copy of the order with only items matching the specified KitchenType
+    /// </summary>
+    private Order CreateFilteredOrder(Order original, string kitchenType)
+    {
+        return new Order
+        {
+            Id = original.Id,
+            OrderNumber = original.OrderNumber,
+            UserId = original.UserId,
+            CustomerName = original.CustomerName,
+            CustomerEmail = original.CustomerEmail,
+            CustomerPhone = original.CustomerPhone,
+            Type = original.Type,
+            TableNumber = original.TableNumber,
+            SubTotal = original.SubTotal,
+            Tax = original.Tax,
+            DeliveryFee = original.DeliveryFee,
+            Discount = original.Discount,
+            DiscountPercentage = original.DiscountPercentage,
+            Tip = original.Tip,
+            Total = original.Total,
+            TotalPaid = original.TotalPaid,
+            RemainingAmount = original.RemainingAmount,
+            IsFullyPaid = original.IsFullyPaid,
+            Status = original.Status,
+            PaymentStatus = original.PaymentStatus,
+            OrderDate = original.OrderDate,
+            CreatedAt = original.CreatedAt,
+            UpdatedAt = original.UpdatedAt,
+            Notes = original.Notes,
+            DeliveryAddress = original.DeliveryAddress,
+            Payments = original.Payments,
+            StatusHistory = original.StatusHistory,
+            // Filter items to only those matching the kitchen type
+            Items = original.Items?
+                .Where(i => string.Equals(i.KitchenType, kitchenType, StringComparison.OrdinalIgnoreCase))
+                .ToList() ?? new List<OrderItem>()
+        };
+    }
+
     public async Task<bool> PrintOrderAsync(Order order, PrinterType printerType, bool isManualPrint = false, CancellationToken cancellationToken = default)
     {
         // Extract order number for logging (parse the numeric part)
@@ -216,7 +353,8 @@ public class OrderPrintService
         }
         else
         {
-            sb.AppendLine($"Table: N/A");
+            // Show order type for Takeaway/Delivery instead of "N/A"
+            sb.AppendLine($"Type: {order.Type}");
         }
         sb.Append(EXTRA_DARK_OFF);
         sb.Append(ESC_DOUBLE_OFF);
@@ -228,6 +366,12 @@ public class OrderPrintService
             sb.AppendLine($"Customer: {order.CustomerName}");
             sb.Append(EXTRA_DARK_OFF);
         }
+
+        // Add date/time for reference
+        var localTime = order.OrderDate.Kind == DateTimeKind.Utc
+            ? order.OrderDate.ToLocalTime()
+            : order.OrderDate;
+        sb.AppendLine($\"{localTime:HH:mm dd/MM/yyyy}\");
 
         sb.AppendLine(new string('-', paperWidth == 80 ? 48 : 32));
 
@@ -241,8 +385,8 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - LARGE and EXTRA DARK for visibility
-                sb.Append(ESC_LARGE_ON);
+                // Item name and quantity - DOUBLE size (reduced from LARGE)
+                sb.Append(ESC_DOUBLE_ON);
                 sb.Append(EXTRA_DARK_ON);
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
                 sb.Append(EXTRA_DARK_OFF);
@@ -254,6 +398,31 @@ public class OrderPrintService
                     sb.Append(EXTRA_DARK_ON);
                     sb.AppendLine($"   - {item.VariationName}");
                     sb.Append(EXTRA_DARK_OFF);
+                }
+
+                // Show ingredient customizations (added/removed ingredients)
+                if (item.IngredientCustomizations != null && item.IngredientCustomizations.Any())
+                {
+                    foreach (var ing in item.IngredientCustomizations)
+                    {
+                        if (ing.IsRemoved)
+                        {
+                            sb.AppendLine($"   ✘ NO {ing.IngredientName}");
+                        }
+                        else if (ing.Quantity > 1)
+                        {
+                            sb.AppendLine($"   + EXTRA {ing.IngredientName}");
+                        }
+                    }
+                }
+
+                // Show side items / additionals
+                if (item.SideItems != null && item.SideItems.Any())
+                {
+                    foreach (var side in item.SideItems)
+                    {
+                        sb.AppendLine($"   + {side.Quantity}x {side.ProductName}");
+                    }
                 }
 
                 // Show special instructions (normal size)
@@ -311,15 +480,12 @@ public class OrderPrintService
         sb.AppendLine($"Order #: {order.OrderNumber}");
         sb.AppendLine($"Type: {order.Type}");
 
-        // Handle table number (null for Takeaway/Delivery)
+        // Handle table number - only show for Dine-In orders
         if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
         {
             sb.AppendLine($"Table: {order.TableNumber}");
         }
-        else
-        {
-            sb.AppendLine($"Table: N/A");
-        }
+        // No "Table: N/A" needed since Type is already shown above
 
         sb.AppendLine($"Date: {localTime:yyyy-MM-dd HH:mm}");
         if (!string.IsNullOrWhiteSpace(order.CustomerName))

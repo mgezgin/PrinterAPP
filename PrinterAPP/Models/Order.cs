@@ -45,6 +45,23 @@ public class OrderItem
     public decimal ItemTotal { get; set; }
     public string? SpecialInstructions { get; set; }
     public string? KitchenType { get; set; } // e.g., "FrontKitchen", "BackKitchen", etc.
+    
+    // Ingredient customizations (added/removed ingredients)
+    public List<IngredientCustomization>? IngredientCustomizations { get; set; }
+    
+    // Side items / additionals (child order items)
+    public List<OrderItem>? SideItems { get; set; }
+}
+
+/// <summary>
+/// Ingredient customization for order items (selected/removed ingredients)
+/// </summary>
+public class IngredientCustomization
+{
+    public string IngredientId { get; set; } = string.Empty;
+    public string IngredientName { get; set; } = string.Empty;
+    public int Quantity { get; set; }
+    public bool IsRemoved { get; set; } // true if customer removed this ingredient
 }
 
 public class Payment

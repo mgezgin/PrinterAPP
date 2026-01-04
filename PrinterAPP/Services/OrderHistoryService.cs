@@ -27,36 +27,57 @@ public class OrderHistoryService
             if (orderEvent.Order == null)
                 return;
 
-            lock (_lockObject)
+            // Must be on main thread for ObservableCollection UI binding to work
+            if (MainThread.IsMainThread)
             {
-                var historyItem = new OrderHistoryItem
-                {
-                    Order = orderEvent.Order,
-                    EventType = orderEvent.EventType,
-                    ReceivedAt = DateTime.UtcNow,
-                    KitchenPrinted = false,
-                    CashierPrinted = false,
-                    Status = orderEvent.Order.Status
-                };
-
-                // Insert at the beginning (most recent first)
-                _orders.Insert(0, historyItem);
-
-                _logger.LogInformation("Order #{OrderNumber} added to history", orderEvent.Order.OrderNumber);
-
-                // Notify subscribers
-                OrderAdded?.Invoke(this, historyItem);
-
-                // Keep only last 100 orders to prevent memory issues
-                if (_orders.Count > 100)
-                {
-                    _orders.RemoveAt(_orders.Count - 1);
-                }
+                AddOrderInternal(orderEvent);
+            }
+            else
+            {
+                MainThread.BeginInvokeOnMainThread(() => AddOrderInternal(orderEvent));
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error adding order to history");
+        }
+    }
+
+    private void AddOrderInternal(OrderEvent orderEvent)
+    {
+        lock (_lockObject)
+        {
+            // Check if order already exists (avoid duplicates in UI)
+            if (_orders.Any(o => o.Order.OrderNumber == orderEvent.Order!.OrderNumber))
+            {
+                _logger.LogInformation("Order #{OrderNumber} already in history, skipping", orderEvent.Order.OrderNumber);
+                return;
+            }
+
+            var historyItem = new OrderHistoryItem
+            {
+                Order = orderEvent.Order!,
+                EventType = orderEvent.EventType,
+                ReceivedAt = DateTime.UtcNow,
+                KitchenPrinted = false,
+                CashierPrinted = false,
+                Status = orderEvent.Order.Status
+            };
+
+            // Insert at the beginning (most recent first)
+            _orders.Insert(0, historyItem);
+
+            _logger.LogInformation("Order #{OrderNumber} added to history (total: {Count})", 
+                orderEvent.Order.OrderNumber, _orders.Count);
+
+            // Notify subscribers
+            OrderAdded?.Invoke(this, historyItem);
+
+            // Keep only last 100 orders to prevent memory issues
+            if (_orders.Count > 100)
+            {
+                _orders.RemoveAt(_orders.Count - 1);
+            }
         }
     }
 
