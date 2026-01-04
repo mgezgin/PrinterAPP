@@ -219,7 +219,7 @@
             </Frame>
 
             <!-- Action Buttons -->
-            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
                 <Button Text="Save"
                         BackgroundColor="#4CAF50"
                         TextColor="White"
@@ -242,6 +242,14 @@
                         FontAttributes="Bold"
                         CornerRadius="25"
                         Clicked="OnResetClicked"/>
+
+                <Button Text="🔄 Update"
+                        Grid.Column="3"
+                        BackgroundColor="#007ACC"
+                        TextColor="White"
+                        FontAttributes="Bold"
+                        CornerRadius="25"
+                        Clicked="OnCheckForUpdatesClicked"/>
             </Grid>
 
         </VerticalStackLayout>

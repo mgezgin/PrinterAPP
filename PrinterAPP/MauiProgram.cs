@@ -26,6 +26,7 @@ namespace PrinterAPP
             builder.Services.AddSingleton<IEventStreamingService, EventStreamingService>();
             builder.Services.AddSingleton<OrderPrintService>();
             builder.Services.AddSingleton<OrderHistoryService>();
+            builder.Services.AddSingleton<UpdateService>();
 
             // Register pages
             builder.Services.AddSingleton<MainPage>();
@@ -33,6 +34,7 @@ namespace PrinterAPP
             builder.Services.AddSingleton<LogsPage>();
             builder.Services.AddSingleton<ErrorLogsPage>();
             builder.Services.AddSingleton<WarningLogsPage>();
+            builder.Services.AddTransient<UpdaterWindow>();
 
             return builder.Build();
         }

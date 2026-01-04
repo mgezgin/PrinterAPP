@@ -12,6 +12,7 @@ public partial class MainPage : ContentPage
     private readonly IEventStreamingService _eventStreamingService;
     private readonly OrderPrintService _orderPrintService;
     private readonly OrderHistoryService _orderHistoryService;
+    private readonly UpdateService _updateService;
     private readonly ILogger<MainPage> _logger;
     private PrinterConfiguration _config;
     private bool _isServiceRunning = false;
@@ -21,6 +22,7 @@ public partial class MainPage : ContentPage
         IEventStreamingService eventStreamingService,
         OrderPrintService orderPrintService,
         OrderHistoryService orderHistoryService,
+        UpdateService updateService,
         ILogger<MainPage> logger)
     {
         InitializeComponent();
@@ -28,6 +30,7 @@ public partial class MainPage : ContentPage
         _eventStreamingService = eventStreamingService;
         _orderPrintService = orderPrintService;
         _orderHistoryService = orderHistoryService;
+        _updateService = updateService;
         _logger = logger;
         _config = new PrinterConfiguration();
 
@@ -633,6 +636,19 @@ public partial class MainPage : ContentPage
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Failed to reset settings: {ex.Message}", "OK");
+        }
+    }
+}
+    private async void OnCheckForUpdatesClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var updaterWindow = new UpdaterWindow(_updateService);
+            await Navigation.PushModalAsync(updaterWindow);
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to open updater: {ex.Message}", "OK");
         }
     }
 }
