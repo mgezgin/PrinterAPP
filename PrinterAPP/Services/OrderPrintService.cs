@@ -85,7 +85,7 @@ public class OrderPrintService
                 {
                     // Filter order to only FrontKitchen items
                     var filteredOrder = CreateFilteredOrder(order, "FrontKitchen");
-                    var content = FormatKitchenReceipt(filteredOrder, config, config.FrontKitchenPaperWidth);
+                    var content = FormatKitchenReceipt(filteredOrder, config, config.FrontKitchenPaperWidth, "Front Kitchen");
                     frontKitchenSuccess = await PrintRawContentAsync(frontKitchenPrinter, content);
                     _logger.LogInformation("FrontKitchen print ({ItemCount} items): {Result}", 
                         filteredOrder.Items?.Count ?? 0, frontKitchenSuccess ? "✓" : "✗");
@@ -114,7 +114,7 @@ public class OrderPrintService
                 {
                     // Filter order to only BackKitchen items
                     var filteredOrder = CreateFilteredOrder(order, "BackKitchen");
-                    var content = FormatKitchenReceipt(filteredOrder, config, config.BackKitchenPaperWidth);
+                    var content = FormatKitchenReceipt(filteredOrder, config, config.BackKitchenPaperWidth, "Back Kitchen");
                     backKitchenSuccess = await PrintRawContentAsync(backKitchenPrinter, content);
                     _logger.LogInformation("BackKitchen print ({ItemCount} items): {Result}", 
                         filteredOrder.Items?.Count ?? 0, backKitchenSuccess ? "✓" : "✗");
@@ -332,13 +332,25 @@ public class OrderPrintService
         }
     }
 
-    private string FormatKitchenReceipt(Order order, PrinterConfiguration config, int paperWidth)
+    private string FormatKitchenReceipt(Order order, PrinterConfiguration config, int paperWidth, string? kitchenName = null)
     {
         var sb = new StringBuilder();
 
         // Initialize printer and set Turkish code page for character support
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
+
+        // KITCHEN NAME HEADER - EXTRA LARGE
+        if (!string.IsNullOrEmpty(kitchenName))
+        {
+            sb.Append(ESC_ALIGN_CENTER);
+            sb.Append(ESC_DOUBLE_ON);
+            sb.Append(EXTRA_DARK_ON);
+            sb.AppendLine($"*** {kitchenName.ToUpper()} ***");
+            sb.Append(EXTRA_DARK_OFF);
+            sb.Append(ESC_DOUBLE_OFF);
+            sb.AppendLine();
+        }
 
         // Order number + Date/Time on one line - EXTRA DARK for visibility
         sb.Append(ESC_ALIGN_LEFT);
