@@ -11,7 +11,7 @@ public class UpdateService
 {
     private readonly ILogger<UpdateService> _logger;
     private readonly HttpClient _httpClient;
-    private const string GITHUB_REPO = "mahmutkaya/rumi-restaurant";
+    private const string GITHUB_REPO = "mgezgin/PrinterAPP";
     private const string RELEASES_API_URL = $"https://api.github.com/repos/{GITHUB_REPO}/releases/latest";
 
     public UpdateService(ILogger<UpdateService> logger)
