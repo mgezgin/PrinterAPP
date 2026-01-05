@@ -290,6 +290,24 @@ public class OrderPrintService
         }
     }
 
+    /// <summary>
+    /// Applies strikethrough effect to text using Unicode combining character
+    /// </summary>
+    private string ApplyStrikethrough(string text)
+    {
+        // Unicode U+0336 is a combining long stroke overlay that creates strikethrough
+        const char strikethroughChar = '\u0336';
+        var result = new StringBuilder();
+        
+        foreach (char c in text)
+        {
+            result.Append(c);
+            result.Append(strikethroughChar);
+        }
+        
+        return result.ToString();
+    }
+
     private string FormatKitchenReceipt(Order order, PrinterConfiguration config, int paperWidth, string? kitchenName = null)
     {
         var sb = new StringBuilder();
@@ -377,10 +395,11 @@ public class OrderPrintService
                     {
                         if (ing.IsRemoved)
                         {
-                            // Use simple dash for strikethrough effect on thermal printers
-                            // The dash is more universally supported than special characters
+                            // Apply strikethrough using Unicode combining character
+                            // U+0336 (combining long stroke overlay) adds strikethrough to each character
+                            var strikethrough = ApplyStrikethrough(ing.IngredientName);
                             sb.Append(ESC_BOLD_ON); // Turn on bold for emphasis
-                            sb.AppendLine($"   - {ing.IngredientName}");
+                            sb.AppendLine($"   {strikethrough}");
                             sb.Append(ESC_BOLD_OFF);
                         }
                         else if (ing.Quantity > 1)
