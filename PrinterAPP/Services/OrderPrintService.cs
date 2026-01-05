@@ -29,6 +29,7 @@ public class OrderPrintService
     // Combined commands for MAXIMUM darkness
     private const string EXTRA_DARK_ON = ESC_BOLD_ON + ESC_EMPHASIZED_ON; // Bold + Emphasized for maximum darkness
     private const string EXTRA_DARK_OFF = ESC_BOLD_OFF + ESC_EMPHASIZED_OFF; // Turn off all emphasis
+    private const string ESC_FEED_LINES = "\x1B\x64\x05"; // Feed 5 lines before cut
 
     public OrderPrintService(
         IPrinterService printerService,
@@ -290,24 +291,6 @@ public class OrderPrintService
         }
     }
 
-    /// <summary>
-    /// Applies strikethrough effect to text using Unicode combining character
-    /// </summary>
-    private string ApplyStrikethrough(string text)
-    {
-        // Unicode U+0336 is a combining long stroke overlay that creates strikethrough
-        const char strikethroughChar = '\u0336';
-        var result = new StringBuilder();
-        
-        foreach (char c in text)
-        {
-            result.Append(c);
-            result.Append(strikethroughChar);
-        }
-        
-        return result.ToString();
-    }
-
     private string FormatKitchenReceipt(Order order, PrinterConfiguration config, int paperWidth, string? kitchenName = null)
     {
         var sb = new StringBuilder();
@@ -316,22 +299,17 @@ public class OrderPrintService
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
 
-        // KITCHEN NAME HEADER - EXTRA LARGE
+        // KITCHEN NAME HEADER - Normal size with bold (smaller than before)
         if (!string.IsNullOrEmpty(kitchenName))
         {
             sb.Append(ESC_ALIGN_CENTER);
-            sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
-            
-            // Preserve Turkish characters - don't use ToUpperInvariant as it breaks special characters
-            // The PC857 codepage will handle Turkish characters correctly
             sb.AppendLine($"*** {kitchenName} ***");
             sb.Append(EXTRA_DARK_OFF);
-            sb.Append(ESC_DOUBLE_OFF);
             sb.AppendLine();
         }
 
-        // Order number + Date/Time on one line - EXTRA DARK for visibility
+        // Order number + Date/Time - Normal size with bold (same as kitchen title)
         sb.Append(ESC_ALIGN_LEFT);
         sb.Append(EXTRA_DARK_ON);
         var localTime = order.OrderDate.Kind == DateTimeKind.Utc
@@ -340,7 +318,8 @@ public class OrderPrintService
         sb.AppendLine($"{order.OrderNumber} - {localTime:dd/MM/yyyy HH:mm}");
         sb.Append(EXTRA_DARK_OFF);
 
-        // Type + Table on one line
+        // Type + Table - LARGER font (priority 2)
+        sb.Append(ESC_DOUBLE_ON);
         sb.Append(EXTRA_DARK_ON);
         if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
         {
@@ -351,6 +330,7 @@ public class OrderPrintService
             sb.AppendLine($"Type: {order.Type}");
         }
         sb.Append(EXTRA_DARK_OFF);
+        sb.Append(ESC_DOUBLE_OFF);
 
         // Customer name only (no phone)
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
@@ -373,33 +353,30 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - DOUBLE size (reduced from LARGE)
-                sb.Append(ESC_DOUBLE_ON);
+                // Item name and quantity - Normal size with bold (slightly smaller - priority 1)
                 sb.Append(EXTRA_DARK_ON);
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
                 sb.Append(EXTRA_DARK_OFF);
-                sb.Append(ESC_DOUBLE_OFF);
 
                 // Show variation if available (normal size)
                 if (!string.IsNullOrWhiteSpace(item.VariationName))
                 {
-                    sb.Append(EXTRA_DARK_ON);
                     sb.AppendLine($"   - {item.VariationName}");
-                    sb.Append(EXTRA_DARK_OFF);
                 }
 
-                // Show ingredient customizations (added/removed ingredients)
-                if (item.IngredientCustomizations != null && item.IngredientCustomizations.Any())
+                // Show ingredient customizations - ONLY modified ingredients (removed or extra)
+                var modifiedIngredients = item.IngredientCustomizations?
+                    .Where(ing => ing.IsRemoved || ing.Quantity > 1)
+                    .ToList();
+                if (modifiedIngredients != null && modifiedIngredients.Any())
                 {
-                    foreach (var ing in item.IngredientCustomizations)
+                    foreach (var ing in modifiedIngredients)
                     {
                         if (ing.IsRemoved)
                         {
-                            // Apply strikethrough using Unicode combining character
-                            // U+0336 (combining long stroke overlay) adds strikethrough to each character
-                            var strikethrough = ApplyStrikethrough(ing.IngredientName);
-                            sb.Append(ESC_BOLD_ON); // Turn on bold for emphasis
-                            sb.AppendLine($"   {strikethrough}");
+                            // Simple "NO" prefix instead of Unicode strikethrough (encoding safe)
+                            sb.Append(ESC_BOLD_ON);
+                            sb.AppendLine($"   - NO {ing.IngredientName}");
                             sb.Append(ESC_BOLD_OFF);
                         }
                         else if (ing.Quantity > 1)
@@ -407,14 +384,6 @@ public class OrderPrintService
                             sb.Append(ESC_BOLD_ON);
                             sb.AppendLine($"   + EXTRA {ing.IngredientName}");
                             sb.Append(ESC_BOLD_OFF);
-                        }
-                        else 
-                        {
-                            // Selected ingredient (standard included ones usually don't show here unless customized)
-                            // But if it's in the list and not removed/extra, it means it's explicitly selected/changed?
-                            // Frontend logic: show if isRemoved OR quantity > 1.
-                            // If it's just quantity 1 and not removed, it might be a mandatory choice.
-                            sb.AppendLine($"   • {ing.IngredientName}");
                         }
                     }
                 }
@@ -447,8 +416,12 @@ public class OrderPrintService
 
         sb.AppendLine();
         sb.AppendLine();
+        sb.AppendLine();
+        sb.AppendLine();
+        sb.AppendLine();
 
-        // Use GS V 0 (Standard Full Cut) instead of FEED_AND_CUT which might be model specific
+        // Feed extra lines before cut to prevent text cutoff
+        sb.Append(ESC_FEED_LINES);
         sb.Append(ESC_CUT);
 
         return sb.ToString();
@@ -469,7 +442,7 @@ public class OrderPrintService
         sb.AppendLine($"{config.RestaurantName}");
         sb.Append(ESC_DOUBLE_OFF);
 
-        sb.AppendLine("RECEIPT");
+        sb.AppendLine("ONLINE ORDER");
         sb.Append(EXTRA_DARK_OFF);
         sb.AppendLine();
 
@@ -602,7 +575,11 @@ public class OrderPrintService
         sb.AppendLine();
         sb.AppendLine();
         sb.AppendLine();
+        sb.AppendLine();
+        sb.AppendLine();
 
+        // Feed extra lines before cut to prevent text cutoff
+        sb.Append(ESC_FEED_LINES);
         sb.Append(ESC_CUT);
 
         return sb.ToString();
