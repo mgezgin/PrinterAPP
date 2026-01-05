@@ -157,55 +157,120 @@ public class UpdateService
                 return false;
             }
 
+            var currentProcessId = Process.GetCurrentProcess().Id;
             var backupPath = currentExePath + ".bak";
-            _logger.LogInformation("Creating backup: {Backup}", backupPath);
+            var logPath = Path.Combine(Path.GetTempPath(), "printerapp_update.log");
+            
+            _logger.LogInformation("Installing update from {UpdateFile} to {CurrentExe}", updateFilePath, currentExePath);
+            _logger.LogInformation("Current process ID: {ProcessId}", currentProcessId);
+
+            // Verify update file exists and is valid
+            var updateFileInfo = new FileInfo(updateFilePath);
+            if (!updateFileInfo.Exists || updateFileInfo.Length < 1024 * 100) // At least 100KB
+            {
+                _logger.LogError("Update file is invalid or too small: {Size} bytes", updateFileInfo.Length);
+                return false;
+            }
+
+            // Get current exe size for comparison
+            var currentFileInfo = new FileInfo(currentExePath);
+            _logger.LogInformation("Current exe size: {CurrentSize} bytes, Update size: {UpdateSize} bytes", 
+                currentFileInfo.Length, updateFileInfo.Length);
 
             // Backup current version
+            _logger.LogInformation("Creating backup: {Backup}", backupPath);
             if (File.Exists(backupPath))
             {
                 File.Delete(backupPath);
             }
-            File.Copy(currentExePath, backupPath);
+            File.Copy(currentExePath, backupPath, true);
+
+            // Verify backup was created
+            if (!File.Exists(backupPath))
+            {
+                _logger.LogError("Failed to create backup file");
+                return false;
+            }
 
             _logger.LogInformation("Installing update...");
 
-            // Create a batch script to replace the exe and restart
+            // Create a robust batch script with better error handling
             var batchScript = Path.Combine(Path.GetTempPath(), "update_printerapp.bat");
             var scriptContent = $@"
 @echo off
+echo Update process started at %DATE% %TIME% > ""{logPath}""
+echo Current EXE: {currentExePath} >> ""{logPath}""
+echo Update File: {updateFilePath} >> ""{logPath}""
+echo Backup File: {backupPath} >> ""{logPath}""
+echo. >> ""{logPath}""
+
+echo Waiting for application to close... >> ""{logPath}""
+timeout /t 3 /nobreak > nul
+
+REM Force kill the process if still running
+taskkill /F /PID {currentProcessId} > nul 2>&1
+
+echo Waiting additional time for file handles to release... >> ""{logPath}""
 timeout /t 2 /nobreak > nul
+
+echo Attempting to replace executable... >> ""{logPath}""
 copy /Y ""{updateFilePath}"" ""{currentExePath}""
 if errorlevel 1 (
-    echo Update failed, restoring backup...
-    copy /Y ""{backupPath}"" ""{currentExePath}""
-) else (
-    echo Update successful
-    del ""{backupPath}""
+    echo ERROR: Copy failed, attempting retry... >> ""{logPath}""
+    timeout /t 2 /nobreak > nul
+    copy /Y ""{updateFilePath}"" ""{currentExePath}""
+    if errorlevel 1 (
+        echo ERROR: Retry failed, restoring from backup... >> ""{logPath}""
+        copy /Y ""{backupPath}"" ""{currentExePath}""
+        echo Update FAILED - backup restored >> ""{logPath}""
+        goto :cleanup
+    )
 )
+
+echo Verifying file replacement... >> ""{logPath}""
+if not exist ""{currentExePath}"" (
+    echo ERROR: Target exe missing after copy! >> ""{logPath}""
+    copy /Y ""{backupPath}"" ""{currentExePath}""
+    echo Update FAILED - backup restored >> ""{logPath}""
+    goto :cleanup
+)
+
+echo Update successful, cleaning up... >> ""{logPath}""
+del /F /Q ""{backupPath}"" > nul 2>&1
+del /F /Q ""{updateFilePath}"" > nul 2>&1
+
+:cleanup
+echo Restarting application... >> ""{logPath}""
 start """" ""{currentExePath}""
-del ""{updateFilePath}""
-del ""{batchScript}""
+echo Update script completed at %DATE% %TIME% >> ""{logPath}""
+
+REM Self-delete and exit
+(goto) 2>nul & del ""{batchScript}"" > nul 2>&1
 ";
 
             await File.WriteAllTextAsync(batchScript, scriptContent);
+            _logger.LogInformation("Batch script created at: {ScriptPath}", batchScript);
+            _logger.LogInformation("Update log will be at: {LogPath}", logPath);
 
-            // Start the batch script and exit
+            // Start the batch script
             var process = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = batchScript,
-                    CreateNoWindow = true,
-                    UseShellExecute = false
+                    FileName = "cmd.exe",
+                    Arguments = $"/C \"{batchScript}\"",
+                    CreateNoWindow = false, // Show console for debugging
+                    UseShellExecute = true,
+                    WindowStyle = ProcessWindowStyle.Minimized
                 }
             };
 
             process.Start();
             
-            _logger.LogInformation("Update script started. App will restart...");
+            _logger.LogInformation("Update script started. App will exit and restart...");
 
             // Give the batch script time to start
-            await Task.Delay(500);
+            await Task.Delay(1000);
 
             // Exit the current app
             Application.Current?.Quit();

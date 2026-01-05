@@ -246,82 +246,38 @@ public class OrderPrintService
                 return false;
             }
 
-            // Check if order has FrontKitchen items
-            bool hasFrontKitchenItems = order.Items?.Any(item =>
-                string.Equals(item.KitchenType, "FrontKitchen", StringComparison.OrdinalIgnoreCase)) ?? false;
-
+            // Cashier printer only prints the bill (no duplicate kitchen format)
+            // Kitchen tickets are handled by dedicated kitchen printers in PrintOrderToAllPrintersAsync
             bool success = true;
+            // Print the appropriate format
+            string content = printerType == PrinterType.Kitchen
+                ? FormatKitchenReceipt(order, config, paperWidth)
+                : FormatCashierReceipt(order, config, paperWidth);
 
-            if (printerType == PrinterType.Cashier && hasFrontKitchenItems)
+            // Log print request with full content
+            _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
+
+            for (int i = 0; i < copies; i++)
             {
-                // For cashier printer with FrontKitchen items, print TWICE:
-                // 1. Kitchen format (simplified)
-                // 2. Cashier format (full receipt with prices)
+                var result = await PrintRawContentAsync(printerName, content);
+                success = success && result;
 
-                _logger.LogInformation("Order #{OrderNumber} contains FrontKitchen items - printing kitchen format + cashier format to cashier printer",
-                    order.OrderNumber);
-
-                // First print: Kitchen format (Fallback for Front Kitchen)
-                // We MUST provide a header name so the kitchen section is clearly identified
-                string kitchenContent = FormatKitchenReceipt(order, config, paperWidth, "FRONT KITCHEN");
-                _requestLogService.LogPrintRequest(printerType.ToString() + " (Kitchen Format)", orderNumForLog, printerName, kitchenContent);
-
-                var kitchenResult = await PrintRawContentAsync(printerName, kitchenContent);
-                success = success && kitchenResult;
-
-                await Task.Delay(500, cancellationToken); // Delay between formats
-
-                // Second print: Cashier format
-                string cashierContent = FormatCashierReceipt(order, config, paperWidth);
-                _requestLogService.LogPrintRequest(printerType.ToString() + " (Cashier Format)", orderNumForLog, printerName, cashierContent);
-
-                var cashierResult = await PrintRawContentAsync(printerName, cashierContent);
-                success = success && cashierResult;
-
-                // Log print response
-                if (success)
+                if (i < copies - 1)
                 {
-                    _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer (kitchen format + cashier format)",
-                        order.OrderNumber, printerType);
-                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, "Printed kitchen format + cashier format");
+                    await Task.Delay(500, cancellationToken); // Small delay between copies
                 }
-                else
-                {
-                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
-                }
+            }
+
+            // Log print response
+            if (success)
+            {
+                _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
+                    order.OrderNumber, printerType, copies);
+                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
             }
             else
             {
-                // Normal printing (kitchen printer or cashier without FrontKitchen items)
-                string content = printerType == PrinterType.Kitchen
-                    ? FormatKitchenReceipt(order, config, paperWidth)
-                    : FormatCashierReceipt(order, config, paperWidth);
-
-                // Log print request with full content
-                _requestLogService.LogPrintRequest(printerType.ToString(), orderNumForLog, printerName, content);
-
-                for (int i = 0; i < copies; i++)
-                {
-                    var result = await PrintRawContentAsync(printerName, content);
-                    success = success && result;
-
-                    if (i < copies - 1)
-                    {
-                        await Task.Delay(500, cancellationToken); // Small delay between copies
-                    }
-                }
-
-                // Log print response
-                if (success)
-                {
-                    _logger.LogInformation("Successfully printed order #{OrderNumber} to {PrinterType} printer ({Copies} copies)",
-                        order.OrderNumber, printerType, copies);
-                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, true, $"Printed {copies} {(copies > 1 ? "copies" : "copy")}");
-                }
-                else
-                {
-                    _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
-                }
+                _requestLogService.LogPrintResponse(printerType.ToString(), orderNumForLog, false, "Print operation failed");
             }
 
             return success;
@@ -349,13 +305,9 @@ public class OrderPrintService
             sb.Append(ESC_DOUBLE_ON);
             sb.Append(EXTRA_DARK_ON);
             
-            // Fix for Turkish encoding: Replace 'I' with 'İ' to ensure it prints as 'I'
-            // Or use normal 'i' if suitable. The issue is 'I' becoming 'ı' (dotless i) or 'ÿ' in some codepages.
-            // Do NOT replace 'I' with 'İ' anymore as it causes encoding issues (ÿ) on some printers
-            // Just use the upper case name directly.
-            var safeName = kitchenName.ToUpperInvariant();
-            
-            sb.AppendLine($"*** {safeName} ***");
+            // Preserve Turkish characters - don't use ToUpperInvariant as it breaks special characters
+            // The PC857 codepage will handle Turkish characters correctly
+            sb.AppendLine($"*** {kitchenName} ***");
             sb.Append(EXTRA_DARK_OFF);
             sb.Append(ESC_DOUBLE_OFF);
             sb.AppendLine();
@@ -425,13 +377,10 @@ public class OrderPrintService
                     {
                         if (ing.IsRemoved)
                         {
-                            // Strikethrough isn't always supported on thermal printers, so we use "NO" prefix
-                            // and maybe bracket it or use a specific font if possible.
-                            // Frontend uses "✘ NO onion". We'll match that text.
-                            // To simulate strikethrough or emphasis, we can use different font or bold.
-                           
+                            // Use simple dash for strikethrough effect on thermal printers
+                            // The dash is more universally supported than special characters
                             sb.Append(ESC_BOLD_ON); // Turn on bold for emphasis
-                            sb.AppendLine($"   ✘ NO {ing.IngredientName}");
+                            sb.AppendLine($"   - {ing.IngredientName}");
                             sb.Append(ESC_BOLD_OFF);
                         }
                         else if (ing.Quantity > 1)
