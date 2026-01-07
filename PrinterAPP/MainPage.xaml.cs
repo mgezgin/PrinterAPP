@@ -638,6 +638,20 @@ public partial class MainPage : ContentPage
             await DisplayAlert("Error", $"Failed to reset settings: {ex.Message}", "OK");
         }
     }
+    
+    private async void OnPrintStylesClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            var settingsPage = new PrinterAPP.Pages.PrintStyleSettingsPage();
+            await Navigation.PushAsync(settingsPage);
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to open print styles: {ex.Message}", "OK");
+        }
+    }
+
     private async void OnCheckForUpdatesClicked(object sender, EventArgs e)
     {
         try

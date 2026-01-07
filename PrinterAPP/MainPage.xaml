@@ -218,6 +218,27 @@
                 </VerticalStackLayout>
             </Frame>
 
+            <!-- Print Styles Settings -->
+            <Frame BackgroundColor="White" Padding="20" CornerRadius="10" HasShadow="True">
+                <VerticalStackLayout Spacing="10">
+                    <Label Text="🎨 Print Styles"
+                           FontSize="18"
+                           FontAttributes="Bold"/>
+                    
+                    <Label Text="Customize font sizes and styles for different sections of kitchen and cashier receipts."
+                           FontSize="12"
+                           TextColor="Gray"
+                           Margin="0,0,0,10"/>
+                    
+                    <Button Text="Configure Print Styles"
+                            BackgroundColor="#9C27B0"
+                            TextColor="White"
+                            FontAttributes="Bold"
+                            CornerRadius="5"
+                            Clicked="OnPrintStylesClicked"/>
+                </VerticalStackLayout>
+            </Frame>
+
             <!-- Action Buttons -->
             <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
                 <Button Text="Save"

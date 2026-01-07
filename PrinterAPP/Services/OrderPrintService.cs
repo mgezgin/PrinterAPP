@@ -9,6 +9,8 @@ public class OrderPrintService
     private readonly IPrinterService _printerService;
     private readonly RequestLogService _requestLogService;
     private readonly ILogger<OrderPrintService> _logger;
+    private readonly PrintStyleSettingsService _styleService;
+    private readonly PrintStyleSettings _styleSettings;
 
     // ESC/POS Commands for MAXIMUM darkness printing
     private const string ESC_INIT = "\x1B\x40"; // Initialize printer
@@ -42,6 +44,25 @@ public class OrderPrintService
         _printerService = printerService;
         _requestLogService = requestLogService;
         _logger = logger;
+        _styleService = new PrintStyleSettingsService();
+        _styleSettings = _styleService.LoadSettings();
+    }
+
+    /// <summary>
+    /// Applies a section style and returns the ESC/POS commands
+    /// </summary>
+    private string ApplyStyle(SectionStyle style)
+    {
+        var (sizeCmd, boldCmd, alignCmd) = _styleService.GetEscPosCommands(style);
+        return alignCmd + sizeCmd + boldCmd;
+    }
+
+    /// <summary>
+    /// Resets formatting after applying a style
+    /// </summary>
+    private string ResetStyle(SectionStyle style)
+    {
+        return _styleService.GetResetCommands(style);
     }
 
     /// <summary>
