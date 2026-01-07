@@ -16,7 +16,10 @@ public class OrderPrintService
     private const string ESC_BOLD_OFF = "\x1B\x45\x00"; // Bold off
     private const string ESC_EMPHASIZED_ON = "\x1B\x47\x01"; // Emphasized/Double-strike on
     private const string ESC_EMPHASIZED_OFF = "\x1B\x47\x00"; // Emphasized off
-    private const string ESC_DOUBLE_ON = "\x1D\x21\x11"; // Double width and height
+    private const string ESC_SIZE_NORMAL = "\x1D\x21\x00"; // Normal size (1x width, 1x height)
+    private const string ESC_SIZE_TALL = "\x1D\x21\x01"; // Tall only (1x width, 2x height)
+    private const string ESC_SIZE_WIDE = "\x1D\x21\x10"; // Wide only (2x width, 1x height)
+    private const string ESC_DOUBLE_ON = "\x1D\x21\x11"; // Double width and height (2x, 2x)
     private const string ESC_DOUBLE_OFF = "\x1D\x21\x00"; // Normal size
     private const string ESC_LARGE_ON = "\x1D\x21\x22"; // 2x width, 3x height (larger size for kitchen)
     private const string ESC_ALIGN_CENTER = "\x1B\x61\x01"; // Center align
@@ -318,9 +321,8 @@ public class OrderPrintService
         sb.AppendLine($"{order.OrderNumber} - {localTime:dd/MM/yyyy HH:mm}");
         sb.Append(EXTRA_DARK_OFF);
 
-        // Type + Table - LARGER font (priority 2)
-        sb.Append(ESC_DOUBLE_ON);
-        sb.Append(EXTRA_DARK_ON);
+        // Type + Table - TALL size (1x width, 2x height - intermediate between normal and double)
+        sb.Append(ESC_SIZE_TALL);
         if (order.TableNumber.HasValue && order.TableNumber.Value > 0)
         {
             sb.AppendLine($"Type: {order.Type} - Table {order.TableNumber}");
@@ -329,8 +331,7 @@ public class OrderPrintService
         {
             sb.AppendLine($"Type: {order.Type}");
         }
-        sb.Append(EXTRA_DARK_OFF);
-        sb.Append(ESC_DOUBLE_OFF);
+        sb.Append(ESC_SIZE_NORMAL);
 
         // Customer name only (no phone)
         if (!string.IsNullOrWhiteSpace(order.CustomerName))
@@ -353,10 +354,10 @@ public class OrderPrintService
                 // Log each item for debugging
                 _logger.LogInformation("Item: {Quantity}x {ProductName}", item.Quantity, item.ProductName);
 
-                // Item name and quantity - Normal size with bold (slightly smaller - priority 1)
-                sb.Append(EXTRA_DARK_ON);
+                // Item name and quantity - WIDE size (2x width, 1x height - bigger than normal)
+                sb.Append(ESC_SIZE_WIDE);
                 sb.AppendLine($"{item.Quantity}x {item.ProductName}");
-                sb.Append(EXTRA_DARK_OFF);
+                sb.Append(ESC_SIZE_NORMAL);
 
                 // Show variation if available (normal size)
                 if (!string.IsNullOrWhiteSpace(item.VariationName))
@@ -374,16 +375,17 @@ public class OrderPrintService
                     {
                         if (ing.IsRemoved)
                         {
-                            // Simple "NO" prefix instead of Unicode strikethrough (encoding safe)
-                            sb.Append(ESC_BOLD_ON);
+                            // TALL size "NO" prefix for removed ingredients
+                            sb.Append(ESC_SIZE_TALL);
                             sb.AppendLine($"   - NO {ing.IngredientName}");
-                            sb.Append(ESC_BOLD_OFF);
+                            sb.Append(ESC_SIZE_NORMAL);
                         }
                         else if (ing.Quantity > 1)
                         {
-                            sb.Append(ESC_BOLD_ON);
+                            // TALL size "EXTRA" prefix for extra ingredients
+                            sb.Append(ESC_SIZE_TALL);
                             sb.AppendLine($"   + EXTRA {ing.IngredientName}");
-                            sb.Append(ESC_BOLD_OFF);
+                            sb.Append(ESC_SIZE_NORMAL);
                         }
                     }
                 }
@@ -397,12 +399,12 @@ public class OrderPrintService
                     }
                 }
 
-                // Show special instructions (normal size)
+                // Show special instructions - TALL size for visibility
                 if (!string.IsNullOrWhiteSpace(item.SpecialInstructions))
                 {
-                    sb.Append(EXTRA_DARK_ON);
+                    sb.Append(ESC_SIZE_TALL);
                     sb.AppendLine($"   NOTE: {item.SpecialInstructions}");
-                    sb.Append(EXTRA_DARK_OFF);
+                    sb.Append(ESC_SIZE_NORMAL);
                 }
                 sb.AppendLine();
             }

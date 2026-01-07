@@ -359,8 +359,11 @@ public class SimplePrinterService : IPrinterService
 
             System.Diagnostics.Debug.WriteLine("Page started");
 
-            byte[] bytes = Encoding.UTF8.GetBytes(text);
-            System.Diagnostics.Debug.WriteLine($"Sending {bytes.Length} bytes to printer");
+            // Use PC857 (Turkish MS-DOS) encoding to match ESC/POS code page
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var encoding = Encoding.GetEncoding(857);
+            byte[] bytes = encoding.GetBytes(text);
+            System.Diagnostics.Debug.WriteLine($"Sending {bytes.Length} bytes to printer (PC857 encoding)");
 
             int written;
             bool success = WritePrinter(hPrinter, bytes, bytes.Length, out written);
@@ -578,7 +581,10 @@ public class SimplePrinterService : IPrinterService
             await client.ConnectAsync(ip, port);
 
             using var stream = client.GetStream();
-            var bytes = Encoding.UTF8.GetBytes(text);
+            // Use PC857 (Turkish MS-DOS) encoding to match ESC/POS code page
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+            var encoding = Encoding.GetEncoding(857);
+            var bytes = encoding.GetBytes(text);
 
             System.Diagnostics.Debug.WriteLine($"Sending {bytes.Length} bytes to network printer");
             await stream.WriteAsync(bytes, 0, bytes.Length);
