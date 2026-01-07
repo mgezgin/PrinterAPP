@@ -9,7 +9,7 @@ public class SectionStyle
     public FontSize Size { get; set; } = FontSize.Normal;
     public bool IsBold { get; set; } = false;
     public bool IsEmphasized { get; set; } = false;
-    public TextAlignment Alignment { get; set; } = TextAlignment.Left;
+    public PrintAlignment Alignment { get; set; } = PrintAlignment.Left;
 }
 
 /// <summary>
@@ -25,9 +25,9 @@ public enum FontSize
 }
 
 /// <summary>
-/// Text alignment options
+/// Text alignment options for print sections
 /// </summary>
-public enum TextAlignment
+public enum PrintAlignment
 {
     Left = 0,
     Center = 1,
@@ -46,7 +46,7 @@ public class PrintStyleSettings
         Size = FontSize.Normal,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Center
+        Alignment = PrintAlignment.Center
     };
     
     public SectionStyle KitchenOrderInfo { get; set; } = new()
@@ -55,7 +55,7 @@ public class PrintStyleSettings
         Size = FontSize.Normal,
         IsBold = true,
         IsEmphasized = false,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle KitchenOrderType { get; set; } = new()
@@ -64,7 +64,7 @@ public class PrintStyleSettings
         Size = FontSize.Tall,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle KitchenItemName { get; set; } = new()
@@ -73,7 +73,7 @@ public class PrintStyleSettings
         Size = FontSize.Wide,
         IsBold = true,
         IsEmphasized = false,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle KitchenItemQuantity { get; set; } = new()
@@ -82,7 +82,7 @@ public class PrintStyleSettings
         Size = FontSize.Wide,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle KitchenIngredients { get; set; } = new()
@@ -91,7 +91,7 @@ public class PrintStyleSettings
         Size = FontSize.Tall,
         IsBold = false,
         IsEmphasized = false,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     // Cashier Receipt Sections
@@ -101,7 +101,7 @@ public class PrintStyleSettings
         Size = FontSize.Double,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Center
+        Alignment = PrintAlignment.Center
     };
     
     public SectionStyle CashierOrderInfo { get; set; } = new()
@@ -110,7 +110,7 @@ public class PrintStyleSettings
         Size = FontSize.Normal,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle CashierItemLine { get; set; } = new()
@@ -119,7 +119,7 @@ public class PrintStyleSettings
         Size = FontSize.Normal,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle CashierTotals { get; set; } = new()
@@ -128,7 +128,7 @@ public class PrintStyleSettings
         Size = FontSize.Normal,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
     
     public SectionStyle CashierGrandTotal { get; set; } = new()
@@ -137,7 +137,7 @@ public class PrintStyleSettings
         Size = FontSize.Double,
         IsBold = true,
         IsEmphasized = true,
-        Alignment = TextAlignment.Left
+        Alignment = PrintAlignment.Left
     };
 
     /// <summary>

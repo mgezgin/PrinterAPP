@@ -95,10 +95,10 @@ public partial class PrintStyleSettingsPage : ContentPage
         var alignPicker = new Picker
         {
             Title = "Select Alignment",
-            ItemsSource = Enum.GetNames(typeof(TextAlignment)).ToList(),
+            ItemsSource = Enum.GetNames(typeof(PrintAlignment)).ToList(),
             SelectedIndex = (int)style.Alignment
         };
-        alignPicker.SelectedIndexChanged += (s, e) => style.Alignment = (TextAlignment)alignPicker.SelectedIndex;
+        alignPicker.SelectedIndexChanged += (s, e) => style.Alignment = (PrintAlignment)alignPicker.SelectedIndex;
         
         Grid.SetRow(alignLabel, 3);
         Grid.SetColumn(alignLabel, 0);

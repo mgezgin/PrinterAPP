@@ -107,7 +107,7 @@
                 <!-- Kitchen Ingredients -->
                 <Frame BorderColor="{StaticResource Gray300}" Padding="15">
                     <VerticalStackLayout Spacing="10">
-                        <Label Text="Ingredients & Notes" 
+                        <Label Text="Ingredients &amp; Notes" 
                                FontAttributes="Bold"
                                FontSize="16"/>
                         <Grid x:Name="KitchenIngredientsControls"/>

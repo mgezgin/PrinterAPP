@@ -454,9 +454,11 @@ public class OrderPrintService
     {
         var sb = new StringBuilder();
 
-        // Initialize printer and set Turkish code page for character support
+        // Initialize printer and set Turkish code page for character support  
+        // Some printers need the code page command repeated to properly switch encoding
         sb.Append(ESC_INIT);
         sb.Append(ESC_CODEPAGE_TURKISH);
+        sb.Append(ESC_CODEPAGE_TURKISH); // Send twice for stubborn printers
 
         // Header - EXTRA DARK, Bold, and Double Size
         sb.Append(ESC_ALIGN_CENTER);

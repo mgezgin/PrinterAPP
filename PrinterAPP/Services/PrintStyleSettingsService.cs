@@ -105,9 +105,9 @@ public class PrintStyleSettingsService
         // Alignment command
         var alignCommand = style.Alignment switch
         {
-            TextAlignment.Left => "\x1B\x61\x00",
-            TextAlignment.Center => "\x1B\x61\x01",
-            TextAlignment.Right => "\x1B\x61\x02",
+            PrintAlignment.Left => "\x1B\x61\x00",
+            PrintAlignment.Center => "\x1B\x61\x01",
+            PrintAlignment.Right => "\x1B\x61\x02",
             _ => "\x1B\x61\x00"
         };
 
